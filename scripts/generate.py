@@ -212,27 +212,51 @@ def render_ai_scene_video(images: list[Path], duration: float, video_path: Path,
     durations[-1] = max(0.5, duration - sum(durations[:-1]))
     for index, (image_path, clip_duration) in enumerate(zip(images, durations), start=1):
         clip_path = scene_dir / f"clip-{index:02}.mp4"
+        # Alternate camera movement so each still feels like a different documentary shot.
+        if index % 3 == 1:
+            motion = "zoompan=z='min(zoom+0.0012,1.16)':d=1:x='(iw-iw/zoom)*(0.25+0.5*on/((duration*30)+1))':y='(ih-ih/zoom)*0.42':s=720x1280:fps=30"
+        elif index % 3 == 2:
+            motion = "zoompan=z='min(zoom+0.0010,1.13)':d=1:x='(iw-iw/zoom)*0.72':y='(ih-ih/zoom)*(0.65-0.35*on/((duration*30)+1))':s=720x1280:fps=30"
+        else:
+            motion = "zoompan=z='if(lte(zoom,1.12),1.12,max(1.0,zoom-0.0007))':d=1:x='(iw-iw/zoom)*(0.65-0.3*on/((duration*30)+1))':y='(ih-ih/zoom)*(0.25+0.5*on/((duration*30)+1))':s=720x1280:fps=30"
         run([
             "ffmpeg", "-y", "-loop", "1", "-framerate", "30", "-i", str(image_path),
             "-t", f"{clip_duration:.3f}",
             "-vf", "scale=900:1600:force_original_aspect_ratio=increase,"
-                   "crop=900:1600,zoompan=z='min(zoom+0.0008,1.08)':d=1:"
-                   "x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=720x1280:fps=30,setsar=1",
+                   "crop=900:1600," + motion + ",setsar=1",
             "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
             "-pix_fmt", "yuv420p", str(clip_path),
         ])
         clip_paths.append(clip_path)
 
-    concat_file = scene_dir / "concat.txt"
-    concat_file.write_text(
-        "".join(f"file '{path.resolve().as_posix()}'\n" for path in clip_paths),
-        encoding="utf-8",
-    )
+    # Crossfade scene changes instead of making abrupt cuts between generated images.
     stitched_path = scene_dir / "stitched.mp4"
-    run([
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
-        "-c", "copy", str(stitched_path),
-    ])
+    if len(clip_paths) == 1:
+        run(["ffmpeg", "-y", "-i", str(clip_paths[0]), "-c", "copy", str(stitched_path)])
+    else:
+        fade = min(0.45, max(0.15, duration / (len(clip_paths) * 5)))
+        offsets = []
+        elapsed = durations[0]
+        for clip_duration in durations[1:-1]:
+            offsets.append(elapsed - fade)
+            elapsed += clip_duration - fade
+        offsets.append(elapsed - fade)
+        filters = []
+        current = "[0:v]"
+        for idx in range(1, len(clip_paths)):
+            out_label = f"[xf{idx}]"
+            filters.append(
+                f"{current}[{idx}:v]xfade=transition=fade:duration={fade:.3f}:"
+                f"offset={offsets[idx-1]:.3f}{out_label}"
+            )
+            current = out_label
+        run([
+            "ffmpeg", "-y",
+            *sum((["-i", str(path)] for path in clip_paths), []),
+            "-filter_complex", ";".join(filters),
+            "-map", current, "-an", "-c:v", "libx264", "-preset", "veryfast",
+            "-crf", "23", "-pix_fmt", "yuv420p", str(stitched_path),
+        ])
 
     # The AI images supply the context; title and subtitles remain legible over them.
     ai_filter = (
