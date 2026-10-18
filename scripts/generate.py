@@ -214,11 +214,11 @@ def render_ai_scene_video(images: list[Path], duration: float, video_path: Path,
         clip_path = scene_dir / f"clip-{index:02}.mp4"
         # Alternate camera movement so each still feels like a different documentary shot.
         if index % 3 == 1:
-            motion = "zoompan=z='min(zoom+0.0012,1.16)':d=1:x='(iw-iw/zoom)*(0.25+0.5*on/((duration*30)+1))':y='(ih-ih/zoom)*0.42':s=720x1280:fps=30"
+            motion = f"zoompan=z='min(zoom+0.0012,1.16)':d=1:x='(iw-iw/zoom)*(0.25+0.5*on/{max(1, clip_duration * 30):.3f})':y='(ih-ih/zoom)*0.42':s=720x1280:fps=30"
         elif index % 3 == 2:
-            motion = "zoompan=z='min(zoom+0.0010,1.13)':d=1:x='(iw-iw/zoom)*0.72':y='(ih-ih/zoom)*(0.65-0.35*on/((duration*30)+1))':s=720x1280:fps=30"
+            motion = f"zoompan=z='min(zoom+0.0010,1.13)':d=1:x='(iw-iw/zoom)*0.72':y='(ih-ih/zoom)*(0.65-0.35*on/{max(1, clip_duration * 30):.3f})':s=720x1280:fps=30"
         else:
-            motion = "zoompan=z='if(lte(zoom,1.12),1.12,max(1.0,zoom-0.0007))':d=1:x='(iw-iw/zoom)*(0.65-0.3*on/((duration*30)+1))':y='(ih-ih/zoom)*(0.25+0.5*on/((duration*30)+1))':s=720x1280:fps=30"
+            motion = f"zoompan=z='if(lte(zoom,1.12),1.12,max(1.0,zoom-0.0007))':d=1:x='(iw-iw/zoom)*(0.65-0.3*on/{max(1, clip_duration * 30):.3f})':y='(ih-ih/zoom)*(0.25+0.5*on/{max(1, clip_duration * 30):.3f})':s=720x1280:fps=30"
         run([
             "ffmpeg", "-y", "-loop", "1", "-framerate", "30", "-i", str(image_path),
             "-t", f"{clip_duration:.3f}",
