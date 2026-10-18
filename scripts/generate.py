@@ -241,9 +241,9 @@ def render_ai_scene_video(images: list[Path], duration: float, video_path: Path,
         f"drawtext=text='{title}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
         "borderw=3:bordercolor=black@0.85:x=(w-text_w)/2:y=96,"
         f"subtitles='{srt_path.as_posix()}':force_style="
-        "'FontName=DejaVu Sans,FontSize=17,Bold=1,PrimaryColour=&H00FFFFFF,"
+        "'FontName=DejaVu Sans,FontSize=13,Bold=1,PrimaryColour=&H00FFFFFF,"
         "OutlineColour=&H00101010,BorderStyle=1,BackColour=&H00000000,"
-        "Outline=2,Shadow=1,Alignment=2,MarginL=72,MarginR=72,MarginV=230'"
+        "Outline=1,Shadow=0,Alignment=2,MarginL=90,MarginR=90,MarginV=105'"
 
     )
     run([
@@ -293,9 +293,9 @@ def main() -> None:
             f"drawtext=text='{fact['title']}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
             "borderw=3:bordercolor=black@0.85:x=(w-text_w)/2:y=96,"
             f"subtitles='{srt_path.as_posix()}':force_style="
-            "'FontName=DejaVu Sans,FontSize=17,Bold=1,PrimaryColour=&H00FFFFFF,"
+            "'FontName=DejaVu Sans,FontSize=13,Bold=1,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00101010,BorderStyle=1,BackColour=&H00000000,"
-            "Outline=2,Shadow=1,Alignment=2,MarginL=72,MarginR=72,MarginV=230'"
+            "Outline=1,Shadow=0,Alignment=2,MarginL=90,MarginR=90,MarginV=105'"
 
         )
         print("Rendering animated-background fallback MP4...")
