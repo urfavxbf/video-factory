@@ -69,7 +69,8 @@ def srt_timestamp(seconds: float) -> str:
     return f"{hours:02}:{minutes:02}:{secs:02},{millis:03}"
 
 
-def make_caption_chunks(text: str, max_words: int = 7) -> list[str]:
+def make_caption_chunks(text: str, max_words: int = 5) -> list[str]:
+    """Shorter caption chunks are easier to read on a phone."""
     sentences = re.split(r"(?<=[.!?])\s+", text.strip())
     chunks: list[str] = []
     for sentence in sentences:
@@ -83,7 +84,6 @@ def write_srt(text: str, duration: float, path: Path) -> None:
     chunks = make_caption_chunks(text)
     weights = [max(1, len(chunk.split())) for chunk in chunks]
     total_weight = sum(weights)
-    # Keep a little padding at the end so the last caption does not flash away.
     usable_duration = max(1.0, duration - 0.15)
     cursor = 0.0
     rows = []
@@ -100,7 +100,7 @@ def write_srt(text: str, duration: float, path: Path) -> None:
 
 
 def main() -> None:
-    # Deterministic daily rotation so a rerun on the same day uses the same fact.
+    # The workflow sets TZ=Asia/Manila; daily rotation is stable for reruns.
     fact = FACTS[date.today().toordinal() % len(FACTS)]
     narration = fact["text"]
 
@@ -122,17 +122,24 @@ def main() -> None:
     duration = float(duration_text)
     write_srt(narration, duration, srt_path)
 
-    # Subtitles are burned into the video, so they remain visible on mobile.
+    # Animated geometric accents create motion without external stock footage.
+    # The opening kicker is visible for the first 2.8 seconds as a clear hook.
     subtitle_filter = (
-        f"drawtext=text='{fact['title']}':fontcolor=white:fontsize=42:"
-        "x=(w-text_w)/2:y=100:box=1:boxcolor=0x172554@0.85:boxborderw=22,"
+        "drawbox=x='mod(t*42\\,900)-180':y=0:w=220:h=1280:color=0x2563EB@0.16:t=fill,"
+        "drawbox=x='720-mod(t*27\\,1000)':y=0:w=160:h=1280:color=0x7C3AED@0.12:t=fill,"
+        "drawbox=x=0:y=0:w=720:h=12:color=0x38BDF8@0.95:t=fill,"
+        "drawbox=x=54:y=202:w=612:h=3:color=0x38BDF8@0.85:t=fill,"
+        "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=30:font='DejaVu Sans':"
+        "x=(w-text_w)/2:y=112:enable='between(t,0,2.8)',"
+        f"drawtext=text='{fact['title']}':fontcolor=white:fontsize=42:font='DejaVu Sans':"
+        "x=(w-text_w)/2:y=150:box=1:boxcolor=0x101B35@0.72:boxborderw=18,"
         f"subtitles='{srt_path.as_posix()}':force_style="
-        "'FontName=DejaVu Sans,FontSize=20,PrimaryColour=&H00FFFFFF,"
-        "OutlineColour=&H00101830,BorderStyle=1,Outline=2,Shadow=0,"
-        "Alignment=2,MarginL=60,MarginR=60,MarginV=145'"
+        "'FontName=DejaVu Sans,FontSize=22,Bold=1,PrimaryColour=&H00FFFFFF,"
+        "OutlineColour=&H00202038,BorderStyle=3,BackColour=&HAA101B35,"
+        "Outline=2,Shadow=0,Alignment=2,MarginL=58,MarginR=58,MarginV=170'"
     )
 
-    print("Rendering vertical MP4...")
+    print("Rendering upgraded vertical MP4...")
     run([
         "ffmpeg", "-y",
         "-f", "lavfi", "-i", "color=c=0x101B35:s=720x1280:r=30",
@@ -152,6 +159,8 @@ def main() -> None:
         "narration": narration,
         "duration_seconds": round(duration, 2),
         "video_file": video_path.name,
+        "visual_style": "animated geometric background",
+        "caption_style": "bold high-contrast mobile subtitles",
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"SUCCESS: {video_path}")
