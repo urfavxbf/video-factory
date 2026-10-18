@@ -225,7 +225,7 @@ def render_ai_scene_video(images: list[Path], duration: float, video_path: Path,
 
     concat_file = scene_dir / "concat.txt"
     concat_file.write_text(
-        "".join(f"file '{path.resolve().as_posix()}'\\n" for path in clip_paths),
+        "".join(f"file '{path.resolve().as_posix()}'\n" for path in clip_paths),
         encoding="utf-8",
     )
     stitched_path = scene_dir / "stitched.mp4"
