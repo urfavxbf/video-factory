@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import random
 import re
 import subprocess
 from datetime import date
@@ -39,7 +38,7 @@ FACTS = [
         "text": "Minsan tinatawag na tala sa umaga o tala sa gabi ang Venus. Pero planeta ito, hindi bituin. Napakaliwanag nito sa ating kalangitan dahil sa lapit nito sa Earth at sa makapal na ulap na nagbabalik ng maraming sikat ng araw."
     },
     {
-        "title": "BAKIT LUMULUTANG ANG YEL0?",
+        "title": "BAKIT LUMULUTANG ANG YELO?",
         "text": "Kadalasan, lumulutang ang yelo sa tubig dahil mas mababa ang density nito kaysa likidong tubig. Kapag nagyeyelo ang tubig, nag-aayos ang mga molekula sa isang istrukturang mas maluwag. Dahil dito, mahalaga ang yelo sa pagprotekta sa buhay sa malamig na lawa."
     },
     {
