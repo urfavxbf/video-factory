@@ -2,6 +2,9 @@ name: Generate Fact Video
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
   schedule:
     # 01:00 Asia/Manila (UTC+8) every day
     - cron: "0 17 * * *"
