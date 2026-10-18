@@ -73,7 +73,7 @@ def srt_timestamp(seconds: float) -> str:
     return f"{hours:02}:{minutes:02}:{secs:02},{millis:03}"
 
 
-def make_caption_chunks(text: str, max_words: int = 5) -> list[str]:
+def make_caption_chunks(text: str, max_words: int = 4) -> list[str]:
     """Shorter caption chunks are easier to read on a phone."""
     sentences = re.split(r"(?<=[.!?])\s+", text.strip())
     chunks: list[str] = []
@@ -236,16 +236,15 @@ def render_ai_scene_video(images: list[Path], duration: float, video_path: Path,
 
     # The AI images supply the context; title and subtitles remain legible over them.
     ai_filter = (
-        "drawbox=x=0:y=0:w=720:h=12:color=0x38BDF8@0.95:t=fill,"
-        "drawbox=x=0:y=0:w=720:h=310:color=black@0.24:t=fill,"
-        "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=30:font='DejaVu Sans':"
-        "x=(w-text_w)/2:y=88:enable='between(t,0,2.8)',"
-        f"drawtext=text='{title}':fontcolor=white:fontsize=32:font='DejaVu Sans':"
-        "x=(w-text_w)/2:y=144:box=1:boxcolor=0x101B35@0.78:boxborderw=16,"
+        "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
+        "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
+        f"drawtext=text='{title}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
+        "borderw=3:bordercolor=black@0.85:x=(w-text_w)/2:y=96,"
         f"subtitles='{srt_path.as_posix()}':force_style="
-        "'FontName=DejaVu Sans,FontSize=22,Bold=1,PrimaryColour=&H00FFFFFF,"
-        "OutlineColour=&H00202038,BorderStyle=3,BackColour=&HAA101B35,"
-        "Outline=2,Shadow=0,Alignment=2,MarginL=58,MarginR=58,MarginV=170'"
+        "'FontName=DejaVu Sans,FontSize=17,Bold=1,PrimaryColour=&H00FFFFFF,"
+        "OutlineColour=&H00101010,BorderStyle=1,BackColour=&H00000000,"
+        "Outline=2,Shadow=1,Alignment=2,MarginL=72,MarginR=72,MarginV=230'"
+
     )
     run([
         "ffmpeg", "-y", "-i", str(stitched_path), "-i", str(audio_path),
@@ -288,17 +287,16 @@ def main() -> None:
         # Fallback: animated geometric accents work even without API credentials.
         subtitle_filter = (
             "drawbox=x='mod(t*42\\,900)-180':y=0:w=220:h=1280:color=0x2563EB@0.16:t=fill,"
-            "drawbox=x='720-mod(t*27\\,1000)':y=0:w=160:h=1280:color=0x7C3AED@0.12:t=fill,"
-            "drawbox=x=0:y=0:w=720:h=12:color=0x38BDF8@0.95:t=fill,"
-            "drawbox=x=54:y=258:w=612:h=3:color=0x38BDF8@0.85:t=fill,"
-            "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=30:font='DejaVu Sans':"
-            "x=(w-text_w)/2:y=112:enable='between(t,0,2.8)',"
-            f"drawtext=text='{fact['title']}':fontcolor=white:fontsize=36:font='DejaVu Sans':"
-            "x=(w-text_w)/2:y=160:box=1:boxcolor=0x101B35@0.72:boxborderw=18,"
+            "drawbox=x=720-mod(t*27\\,1000):y=0:w=160:h=1280:color=0x7C3AED@0.12:t=fill,"
+            "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
+            "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
+            f"drawtext=text='{fact['title']}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
+            "borderw=3:bordercolor=black@0.85:x=(w-text_w)/2:y=96,"
             f"subtitles='{srt_path.as_posix()}':force_style="
-            "'FontName=DejaVu Sans,FontSize=22,Bold=1,PrimaryColour=&H00FFFFFF,"
-            "OutlineColour=&H00202038,BorderStyle=3,BackColour=&HAA101B35,"
-            "Outline=2,Shadow=0,Alignment=2,MarginL=58,MarginR=58,MarginV=170'"
+            "'FontName=DejaVu Sans,FontSize=17,Bold=1,PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H00101010,BorderStyle=1,BackColour=&H00000000,"
+            "Outline=2,Shadow=1,Alignment=2,MarginL=72,MarginR=72,MarginV=230'"
+
         )
         print("Rendering animated-background fallback MP4...")
         run([
