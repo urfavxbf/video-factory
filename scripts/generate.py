@@ -228,7 +228,7 @@ def render_pixabay_video(source_paths: list[Path], duration: float, video_path: 
         filters.append(
             f"[{index}:v]scale=720:1280:force_original_aspect_ratio=increase,"
             f"crop=720:1280,fps=30,setsar=1,trim=duration={segment_duration:.3f},"
-            f"setpts=PTS-STARTPTS[v{index}]"
+            f"setpts=PTS-STARTPTS,settb=AVTB,format=yuv444p[v{index}]"
         )
         video_labels.append(f"[v{index}]")
 
