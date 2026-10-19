@@ -214,28 +214,37 @@ def fetch_pixabay_videos(title: str, max_clips: int = 3) -> list[Path]:
 
 def render_pixabay_video(source_paths: list[Path], duration: float, video_path: Path,
                          audio_path: Path, srt_path: Path, title: str) -> None:
-    """Sequence distinct moving clips vertically; preserve narration and captions."""
+    """Sequence distinct moving clips vertically with short crossfades."""
     if not source_paths:
         raise ValueError("At least one source video is required.")
 
-    clip_duration = duration / len(source_paths)
+    transition = min(0.4, duration / max(4, len(source_paths) * 4))
+    segment_duration = (duration + transition * (len(source_paths) - 1)) / len(source_paths)
     inputs = []
     filters = []
-    concat_inputs = []
+    video_labels = []
     for index, source_path in enumerate(source_paths):
         inputs.extend(["-stream_loop", "-1", "-i", str(source_path)])
         filters.append(
             f"[{index}:v]scale=720:1280:force_original_aspect_ratio=increase,"
-            f"crop=720:1280,fps=30,setsar=1,trim=duration={clip_duration:.3f},"
+            f"crop=720:1280,fps=30,setsar=1,trim=duration={segment_duration:.3f},"
             f"setpts=PTS-STARTPTS[v{index}]"
         )
-        concat_inputs.append(f"[v{index}]")
-    filters.append(
-        "".join(concat_inputs) +
-        f"concat=n={len(source_paths)}:v=1:a=0[joined]"
-    )
-    filter_complex = ";".join(filters)
+        video_labels.append(f"[v{index}]")
 
+    current_label = video_labels[0]
+    current_duration = segment_duration
+    for index in range(1, len(source_paths)):
+        output_label = f"[xf{index}]"
+        offset = current_duration - transition
+        filters.append(
+            f"{current_label}{video_labels[index]}xfade=transition=fade:"
+            f"duration={transition:.3f}:offset={offset:.3f}{output_label}"
+        )
+        current_label = output_label
+        current_duration += segment_duration - transition
+
+    filter_complex = ";".join(filters)
     video_filter = (
         "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
         "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
@@ -249,36 +258,12 @@ def render_pixabay_video(source_paths: list[Path], duration: float, video_path: 
     run([
         "ffmpeg", "-y", *inputs, "-i", str(audio_path),
         "-filter_complex", filter_complex,
-        "-map", "[joined]", "-map", f"{len(source_paths)}:a:0",
+        "-map", current_label, "-map", f"{len(source_paths)}:a:0",
         "-vf", video_filter,
         "-t", f"{duration:.3f}", "-c:v", "libx264", "-preset", "veryfast",
         "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
         "-shortest", "-movflags", "+faststart", str(video_path),
     ])
-
-def render_pixabay_video(source_path: Path, duration: float, video_path: Path,
-                         audio_path: Path, srt_path: Path, title: str) -> None:
-    """Crop/loop stock footage vertically; narration and captions remain unchanged."""
-    video_filter = (
-        "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
-        "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
-        f"drawtext=text='{title}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
-        "borderw=3:bordercolor=black@0.85:x=(w-text_w)/2:y=96,"
-        f"subtitles='{srt_path.as_posix()}':force_style="
-        "'FontName=DejaVu Sans,FontSize=13,Bold=1,PrimaryColour=&H00FFFFFF,"
-        "OutlineColour=&H00101010,BorderStyle=1,BackColour=&H00000000,"
-        "Outline=1,Shadow=0,Alignment=2,MarginL=90,MarginR=90,MarginV=105'"
-    )
-    run([
-        "ffmpeg", "-y", "-stream_loop", "-1", "-i", str(source_path),
-        "-i", str(audio_path), "-map", "0:v:0", "-map", "1:a:0",
-        "-vf", "scale=720:1280:force_original_aspect_ratio=increase,"
-               "crop=720:1280,fps=30,setsar=1," + video_filter,
-        "-t", f"{duration:.3f}", "-c:v", "libx264", "-preset", "veryfast",
-        "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
-        "-shortest", "-movflags", "+faststart", str(video_path),
-    ])
-
 
 def main() -> None:
     # The workflow sets TZ=Asia/Manila; daily rotation is stable for reruns.
