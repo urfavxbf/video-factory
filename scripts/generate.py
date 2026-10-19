@@ -85,7 +85,8 @@ def make_caption_chunks(text: str, max_words: int = 6) -> list[str]:
         ]
         # Avoid a tiny final fragment such as "sa atin" on its own.
         if len(sentence_chunks) > 1 and len(sentence_chunks[-1].split()) <= 2:
-            sentence_chunks[-2] += " " + sentence_chunks.pop()
+            trailing_fragment = sentence_chunks.pop()
+            sentence_chunks[-1] += " " + trailing_fragment
         chunks.extend(sentence_chunks)
     return chunks
 
