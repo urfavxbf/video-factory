@@ -309,7 +309,7 @@ private fun drawVideoFrame(
 
     // Moving starfield and glowing planet-like shapes create motion without static images.
     for (i in 0 until 42) {
-        val x = ((i * 83 + seconds * (8 + i % 5) * (if (i % 2 == 0) 1 else -1)) % width + width) % width.toFloat()
+        val x = ((i * 83f + seconds * (8 + i % 5) * (if (i % 2 == 0) 1f else -1f)) % width.toFloat() + width.toFloat()) % width.toFloat()
         val y = ((i * 137) % height).toFloat()
         paint.color = AndroidColor.argb(100 + (i % 5) * 30, 190, 220, 255)
         paint.style = Paint.Style.FILL
