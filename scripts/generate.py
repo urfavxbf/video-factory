@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 import os
 import re
@@ -20,43 +19,43 @@ OUT.mkdir(exist_ok=True)
 FACTS = [
     {
         "title": "BAKIT ASUL ANG LANGIT?",
-        "text": "Alam mo ba kung bakit asul ang langit? Ang liwanag ng araw ay may iba't ibang kulay. Mas madaling ikalat ng hangin ang asul na liwanag kaysa sa pulang liwanag. Kaya sa araw, mas marami tayong nakikitang asul mula sa kalangitan."
+        "text": "Alam mo ba kung bakit asul ang langit? Ang liwanag ng araw ay may iba't ibang kulay, kahit mukhang puti ito sa ating mga mata. Kapag pumapasok ang sikat ng araw sa atmospera, nakikipag-ugnayan ito sa maliliit na molekula ng hangin. Mas madaling ikalat ng mga molekulang ito ang asul na liwanag kaysa sa pulang liwanag. Dahil dito, nagmumula sa maraming direksiyon ang asul na liwanag na umaabot sa ating mga mata. Sa paglubog ng araw, mas mahaba ang dinaanan ng liwanag sa atmospera, kaya mas maraming asul ang naikalat palayo at mas kapansin-pansin ang pula at kahel. Kaya ang kulay ng langit ay may kinalaman sa liwanag at sa hangin sa paligid ng Earth."
     },
     {
         "title": "TUNOG SA KALAWAKAN",
-        "text": "May pagsabog ba na maririnig sa kalawakan? Ang ordinaryong tunog ay nangangailangan ng medium gaya ng hangin. Halos vacuum ang kalawakan, kaya hindi karaniwang makararating doon ang sound waves tulad ng paglalakbay nila sa hangin."
+        "text": "May pagsabog ba na maririnig sa kalawakan? Sa mga pelikula, madalas may malalakas na tunog ang pagsabog at paglipad ng mga spaceship. Pero sa totoong buhay, ang ordinaryong tunog ay nangangailangan ng medium gaya ng hangin, tubig, o solidong materyal para maipasa ang vibration. Halos vacuum ang kalawakan, kaya hindi makapaglalakbay doon ang sound waves tulad ng paglalakbay nila sa hangin sa Earth. Hindi ibig sabihin nito na walang anumang vibration sa kalawakan; may mga alon at signal na kayang sukatin ng mga instrumento, pero hindi iyon basta naririnig ng tainga ng tao. Kaya kung may pagsabog sa malayong bahagi ng vacuum, hindi ito maririnig ng astronaut sa pamamagitan lamang ng hangin."
     },
     {
         "title": "MAY TUBIG SA BUWAN",
-        "text": "Hindi pala ganap na tuyot ang Buwan. Nakakita ang mga siyentipiko ng ebidensiya ng tubig na yelo sa ilang malamig at permanenteng anino malapit sa mga polo nito. Mahalaga ito sa pag-aaral ng kasaysayan ng Buwan at mga susunod na misyon."
+        "text": "Hindi pala ganap na tuyot ang Buwan. Nakakita ang mga siyentipiko ng ebidensiya ng tubig na yelo sa ilang napakalamig at permanenteng anino malapit sa mga polo nito. Dahil hindi direktang naaabot ng sikat ng araw ang mga lugar na ito, nananatiling napakababa ng temperatura at maaaring mapreserba ang yelo sa mahabang panahon. May ebidensiya rin ng mga molekula ng tubig o hydroxyl sa iba pang bahagi ng ibabaw, pero hindi ibig sabihin na may mga ilog o lawa roon. Mahalaga ang pagtuklas na ito sa pag-unawa sa kasaysayan ng Buwan at sa pagpaplano ng mga susunod na misyon. Kung mapag-aaralan at magagamit nang ligtas, maaaring makatulong ang lunar ice bilang pinagkukunan ng tubig para sa mga astronaut."
     },
     {
         "title": "MAS MABAGAL ANG ORAS",
-        "text": "Ayon sa relativity, hindi pare-pareho ang takbo ng oras sa lahat ng sitwasyon. Ang gravity at bilis ay maaaring makaapekto sa pagsukat ng oras. Maliit ang epekto sa pang-araw-araw na buhay, pero kailangang isaalang-alang ito ng mga satellite navigation system."
+        "text": "Ayon sa teorya ng relativity ni Einstein, hindi pare-pareho ang takbo ng oras sa lahat ng sitwasyon. Ang gravity at bilis ay parehong maaaring makaapekto sa pagsukat ng oras. Kapag mas malakas ang gravity, bahagyang mas mabagal ang oras kumpara sa lugar na mas mahina ang gravity. Samantala, ang bagay na gumagalaw nang napakabilis ay maaari ring magkaroon ng ibang pagsukat ng oras kumpara sa isang nakapirming tagamasid. Napakaliit ng epektong ito sa pang-araw-araw na buhay kaya hindi natin ito napapansin. Pero mahalaga ito sa mga satellite navigation system gaya ng GPS. Dahil nasa orbit ang mga satellite at mabilis ang kanilang galaw, kailangang itama ang kanilang mga orasan upang manatiling tumpak ang mga lokasyong ibinibigay sa ating mga telepono."
     },
     {
         "title": "ANG PUSO NG OCTOPUS",
-        "text": "Alam mo ba na may tatlong puso ang octopus? Dalawa ang nagbobomba ng dugo papunta sa hasang, at isa ang nagbobomba nito sa ibang bahagi ng katawan. Kapansin-pansin din na ang dugo nito ay kulay asul dahil sa copper-containing na protina na hemocyanin."
+        "text": "Alam mo ba na may tatlong puso ang octopus? Dalawa sa mga puso nito ang nagbobomba ng dugo papunta sa hasang, kung saan kumukuha ng oxygen ang dugo mula sa tubig. Ang ikatlong puso naman ang nagpapadaloy ng dugo sa iba pang bahagi ng katawan. Kapansin-pansin din na kulay asul ang dugo nito dahil gumagamit ito ng protinang hemocyanin na may tanso upang magdala ng oxygen. Sa tao, hemoglobin na may iron ang ginagamit kaya pula ang dugo natin. May isa pang kakaibang detalye: ang pangunahing pusong nagpapadaloy ng dugo sa katawan ay pansamantalang bumabagal o humihinto sa pagbomba habang lumalangoy ang octopus. Kaya madalas gumapang ito sa halip na lumangoy nang matagal, dahil mas nakakatipid ito ng enerhiya."
     },
     {
         "title": "HINDI BITUIN ANG VENUS",
-        "text": "Minsan tinatawag na tala sa umaga o tala sa gabi ang Venus. Pero planeta ito, hindi bituin. Napakaliwanag nito sa ating kalangitan dahil sa lapit nito sa Earth at sa makapal na ulap na nagbabalik ng maraming sikat ng araw."
+        "text": "Minsan tinatawag na tala sa umaga o tala sa gabi ang Venus, pero planeta ito at hindi bituin. Hindi ito gumagawa ng sariling liwanag tulad ng Araw; nakikita natin ito dahil nagbabalik ng sikat ng araw ang makapal na ulap sa atmospera nito. Napakaliwanag ng Venus kaya madalas itong isa sa pinakamatingkad na bagay sa kalangitan pagkatapos ng Araw at Buwan. Karaniwan itong nakikita malapit sa pagsikat o paglubog ng araw dahil ang orbit nito ay nasa loob ng orbit ng Earth. Hindi ito laging makikita sa buong gabi. Bagama't magkahawig ang laki ng Venus at Earth, ibang-iba ang kondisyon sa ibabaw nito: napakainit dahil sa matinding greenhouse effect at napakataas ng presyon. Kaya hindi ito katulad ng Earth kahit tinatawag minsan na planetang kapatid nito."
     },
     {
         "title": "BAKIT LUMULUTANG ANG YELO?",
-        "text": "Kadalasan, lumulutang ang yelo sa tubig dahil mas mababa ang density nito kaysa likidong tubig. Kapag nagyeyelo ang tubig, nag-aayos ang mga molekula sa isang istrukturang mas maluwag. Dahil dito, mahalaga ang yelo sa pagprotekta sa buhay sa malamig na lawa."
+        "text": "Kadalasan, lumulutang ang yelo sa tubig dahil mas mababa ang density nito kaysa likidong tubig. Kapag lumalamig at nagyeyelo ang tubig, nag-aayos ang mga molekula nito sa isang mala-kristal na istrukturang mas maluwag kaysa sa pagkakaayos nila sa likidong anyo. Dahil dito, mas malaki ang espasyong nasasakop ng parehong dami ng tubig kapag naging yelo ito. Kakaiba ito dahil maraming ibang materyal ang mas siksik sa solidong anyo. Mahalaga rin ang katangiang ito sa kalikasan. Kapag nagyeyelo ang ibabaw ng lawa, nananatili sa ilalim ang likidong tubig, kaya may lugar pa ring matitirhan ang mga isda at iba pang organismo. Nagsisilbi ring panangga ang yelo laban sa sobrang pagkawala ng init. Kaya ang simpleng yelong lumulutang sa baso ay may malaking papel sa buhay sa malamig na kapaligiran."
     },
     {
         "title": "MAY AMOY ANG KALAWAKAN?",
-        "text": "Hindi natin direktang maaamoy ang vacuum ng kalawakan dahil kailangan ng ilong natin ng mga molekulang makararating dito. May mga astronaut na naglarawan ng amoy sa kanilang spacesuit pagkatapos ng spacewalk, pero ang paglalarawang iyon ay mula sa mga residue sa suit, hindi sa vacuum mismo."
+        "text": "Hindi natin direktang maaamoy ang vacuum ng kalawakan dahil kailangan ng ilong natin ng mga molekulang makararating dito upang makilala ang isang amoy. Sa kabila nito, may mga astronaut na naglarawan ng kakaibang amoy sa kanilang spacesuit at kagamitan pagkatapos ng spacewalk. Inihalintulad nila ito sa metal, usok, o nasunog na materyal. Hindi ibig sabihin na may hangin sa kalawakan na may ganoong amoy. Maaaring nagmula ang amoy sa mga residue o kemikal na naiwan sa suit at kagamitan matapos malantad sa kapaligiran ng kalawakan. Dahil mapanganib ang direktang paglanghap sa vacuum, umaasa ang mga astronaut sa spacesuit at life-support system. Kaya mas tamang sabihin na may amoy ang ilang residue pagkatapos ng spacewalk, hindi na naaamoy natin ang vacuum mismo."
     },
     {
         "title": "ANG HIGANTENG JUPITER",
-        "text": "Ang Jupiter ang pinakamalaking planeta sa ating Solar System. Napakalaki nito na mahigit isang libong Earth ang maaaring magkasya rito ayon sa volume. Isa rin itong gas giant, kaya wala itong matigas na ibabaw na katulad ng sa Earth."
+        "text": "Ang Jupiter ang pinakamalaking planeta sa ating Solar System. Napakalaki nito na mahigit isang libong Earth ang maaaring magkasya sa loob nito ayon sa volume. Isa itong gas giant na pangunahing binubuo ng hydrogen at helium, kaya wala itong matigas na ibabaw na katulad ng sa Earth na puwedeng tayuan. May makapal itong ulap at malalakas na bagyo, kabilang ang Great Red Spot, isang napakalaking sistema ng bagyong namataan sa loob ng maraming siglo. Napakalakas din ng magnetic field nito at mayroon itong maraming buwan. Ang ilan sa mga buwan nito, gaya ng Europa, ay pinag-aaralan dahil maaaring may karagatan sa ilalim ng kanilang nagyeyelong ibabaw. Kahit napakalaki ng Jupiter, mabilis itong umiikot sa axis nito at natatapos ang isang araw sa loob ng humigit-kumulang sampung oras."
     },
     {
         "title": "HALOS WALANG TUNOG ANG BUWAN",
-        "text": "Walang hangin sa ibabaw ng Buwan na sapat para magdala ng ordinaryong tunog tulad ng sa Earth. Kaya kung may dalawang astronaut na magkalayo at walang radyo, hindi nila maririnig ang boses ng isa't isa sa pamamagitan lamang ng hangin."
+        "text": "Walang hangin sa ibabaw ng Buwan na sapat para magdala ng ordinaryong tunog tulad ng sa Earth. Ang tunog ay vibration na kailangang dumaan sa materyal gaya ng hangin, tubig, o solidong bagay. Dahil halos walang atmospera ang Buwan, hindi maririnig ng dalawang astronaut na magkalayo ang boses ng isa't isa sa pamamagitan lamang ng hangin. Kaya gumagamit sila ng radyo sa loob ng kanilang helmet at spacesuit upang makapagsalita at makarinig. Hindi ibig sabihin na walang vibration sa Buwan: kung may direktang kontak sa solidong materyal, maaaring dumaan ang vibration sa materyal na iyon. Pero hindi ito katulad ng tunog na naglalakbay sa hangin sa Earth. Isa ito sa mga dahilan kung bakit tahimik ang mga eksenang kinukunan sa ibabaw ng Buwan, kahit may gumagalaw na rover o kagamitan."
     },
 ]
 
@@ -104,61 +103,6 @@ def write_srt(text: str, duration: float, path: Path) -> None:
     path.write_text("\n".join(rows), encoding="utf-8")
 
 
-VISUAL_SCENES = {
-    "BAKIT ASUL ANG LANGIT?": [
-        "Cinematic view from high above Earth, vivid blue atmosphere glowing along the curved horizon, sunlight from space, scientifically inspired realistic photography, vertical composition, no text, no labels",
-        "Sunlight passing through Earth's atmosphere with tiny air molecules scattering blue light in every direction, elegant realistic science visualization, deep navy background and blue rays, vertical composition, no text",
-        "Beautiful real-world view looking up at a brilliant blue sky with soft white clouds above a tropical Philippine landscape, natural sunlight, cinematic realistic photography, vertical composition, no text",
-    ],
-    "TUNOG SA KALAWAKAN": [
-        "A lone astronaut floating outside a spacecraft in the silent black vacuum of space, Earth in the background, cinematic photorealism, vertical composition, no text",
-        "A spacecraft drifting in deep space with stars and distant nebula, visual feeling of absolute silence and emptiness, cinematic realistic science imagery, vertical composition, no text",
-        "Close-up of an astronaut helmet reflecting Earth and stars, dramatic rim lighting, photorealistic, vertical composition, no text",
-    ],
-    "MAY TUBIG SA BUWAN": [
-        "Detailed cinematic lunar surface near the Moon's south pole, rugged gray craters and sharp sunlight, realistic space photography, vertical composition, no text",
-        "Deep shadow inside a permanently shadowed lunar crater with subtle crystalline water ice glinting on the cold surface, scientifically grounded realistic visualization, vertical composition, no text",
-        "A modern lunar exploration rover moving across the Moon with Earth visible low on the horizon, cinematic photorealism, vertical composition, no text",
-    ],
-    "MAS MABAGAL ANG ORAS": [
-        "A GPS navigation satellite orbiting Earth with blue atmospheric glow and solar panels, realistic space photography, vertical composition, no text",
-        "Elegant visualization of curved spacetime around Earth shown as subtle luminous grid lines bending near the planet, science documentary style, vertical composition, no text",
-        "A satellite above Earth with city lights visible at night, crisp cinematic realism, vertical composition, no text",
-    ],
-    "ANG PUSO NG OCTOPUS": [
-        "A realistic octopus swimming gracefully underwater among coral and rocks, detailed skin texture, natural ocean light, vertical composition, no text",
-        "Scientific documentary-style close-up of an octopus with its arms spread, subtle educational anatomical visualization without labels or gore, realistic underwater lighting, vertical composition, no text",
-        "Macro view of an octopus moving across a reef, blue water and sunbeams, photorealistic marine wildlife photography, vertical composition, no text",
-    ],
-    "HINDI BITUIN ANG VENUS": [
-        "The bright planet Venus glowing in a deep twilight sky above a Philippine horizon, realistic astronomy photography, vertical composition, no text",
-        "Planet Venus seen from space as a brilliant sphere wrapped in thick golden-white clouds, photorealistic planetary science image, vertical composition, no text",
-        "A starry twilight sky over Earth with Venus shining brightly above the horizon, cinematic realistic astrophotography, vertical composition, no text",
-    ],
-    "BAKIT LUMULUTANG ANG YELO?": [
-        "Clear ice cubes floating in a glass of water, close-up with realistic refraction and condensation, cinematic macro photography, vertical composition, no text",
-        "Scientific visualization of water molecules forming an open crystalline ice lattice, translucent blue molecular structure, accurate educational 3D render, vertical composition, no text",
-        "A frozen freshwater lake in winter with a visible layer of ice and calm water at the edge, peaceful realistic nature photography, vertical composition, no text",
-    ],
-    "MAY AMOY ANG KALAWAKAN?": [
-        "Astronaut outside a spacecraft during a spacewalk, Earth filling the background, realistic NASA-inspired documentary photography, vertical composition, no text",
-        "Close-up of a space suit glove and helmet after a spacewalk, metallic spacecraft surfaces and reflected sunlight, cinematic realism, vertical composition, no text",
-        "A spacecraft airlock with an astronaut returning from a spacewalk, Earth visible beyond, realistic science documentary style, vertical composition, no text",
-    ],
-    "ANG HIGANTENG JUPITER": [
-        "Jupiter filling most of the frame, swirling cream and rust-colored cloud bands and the Great Red Spot, realistic planetary photography, vertical composition, no text",
-        "A spacecraft flying near Jupiter with the planet's enormous cloud bands and moons in the distance, cinematic realistic space art, vertical composition, no text",
-        "Jupiter and several small moons against a deep black star field, scientifically inspired realistic astronomy image, vertical composition, no text",
-    ],
-    "HALOS WALANG TUNOG ANG BUWAN": [
-        "Two astronauts in bulky white spacesuits standing far apart on the gray lunar surface, Earth above the horizon, realistic cinematic space photography, vertical composition, no text",
-        "Close-up of an astronaut's helmet on the Moon, lunar dust and harsh sunlight, deep black sky, photorealistic, vertical composition, no text",
-        "Wide view of the quiet lunar landscape with footprints leading toward a lunar lander, Earth in the sky, realistic space photography, vertical composition, no text",
-    ],
-}
-
-
-
 PIXABAY_QUERIES = {
     "BAKIT ASUL ANG LANGIT?": "blue sky clouds",
     "TUNOG SA KALAWAKAN": "astronaut space earth",
@@ -178,7 +122,7 @@ def fetch_pixabay_video(title: str) -> Path | None:
     api_key = os.getenv("PIXABAY_API_KEY", "").strip()
     query = PIXABAY_QUERIES.get(title)
     if not api_key or not query:
-        print("Pixabay is not configured; checking the existing AI-image option.")
+        print("Pixabay is not configured; using the animated background fallback.")
         return None
 
     video_path = OUT / "pixabay" / "stock-background.mp4"
@@ -228,7 +172,7 @@ def fetch_pixabay_video(title: str) -> Path | None:
         return video_path
     except Exception as exc:
         print(f"Pixabay video unavailable ({type(exc).__name__}: {exc}).")
-        print("Falling back to Cloudflare AI images, then the animated background.")
+        print("Falling back to the animated background.")
         video_path.unlink(missing_ok=True)
         return None
 
@@ -251,128 +195,6 @@ def render_pixabay_video(source_path: Path, duration: float, video_path: Path,
         "-i", str(audio_path), "-map", "0:v:0", "-map", "1:a:0",
         "-vf", "scale=720:1280:force_original_aspect_ratio=increase,"
                "crop=720:1280,fps=30,setsar=1," + video_filter,
-        "-t", f"{duration:.3f}", "-c:v", "libx264", "-preset", "veryfast",
-        "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
-        "-shortest", "-movflags", "+faststart", str(video_path),
-    ])
-
-
-def generate_ai_images(title: str) -> list[Path]:
-    """Generate three story-matched images when Cloudflare credentials are configured."""
-    account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
-    api_token = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
-    prompts = VISUAL_SCENES.get(title)
-    if not account_id or not api_token or not prompts:
-        print("AI scene images are not configured; using animated-background fallback.")
-        return []
-
-    scene_dir = OUT / "scenes"
-    scene_dir.mkdir(exist_ok=True)
-    generated: list[Path] = []
-    endpoint = (
-        "https://api.cloudflare.com/client/v4/accounts/"
-        f"{account_id}/ai/run/@cf/black-forest-labs/flux-1-schnell"
-    )
-    try:
-        for index, prompt in enumerate(prompts, start=1):
-            print(f"Generating contextual AI image {index}/{len(prompts)}...")
-            payload = json.dumps({"prompt": prompt, "steps": 4}).encode("utf-8")
-            request = urllib.request.Request(
-                endpoint,
-                data=payload,
-                headers={
-                    "Authorization": f"Bearer {api_token}",
-                    "Content-Type": "application/json",
-                },
-                method="POST",
-            )
-            with urllib.request.urlopen(request, timeout=120) as response:
-                result = json.loads(response.read().decode("utf-8"))
-            image_data = result.get("result", {}).get("image")
-            if not result.get("success") or not image_data:
-                raise RuntimeError("Cloudflare AI did not return an image.")
-            image_path = scene_dir / f"scene-{index:02}.png"
-            image_path.write_bytes(base64.b64decode(image_data))
-            generated.append(image_path)
-        return generated
-    except Exception as exc:
-        print(f"AI image generation failed ({type(exc).__name__}: {exc}).")
-        print("Falling back to the animated background so the workflow can still finish.")
-        for path in generated:
-            path.unlink(missing_ok=True)
-        return []
-
-
-def render_ai_scene_video(images: list[Path], duration: float, video_path: Path,
-                          audio_path: Path, srt_path: Path, title: str) -> None:
-    """Create gentle Ken Burns motion on each generated image, then add narration/captions."""
-    scene_dir = OUT / "scenes"
-    clip_paths: list[Path] = []
-    durations = [duration / len(images)] * len(images)
-    durations[-1] = max(0.5, duration - sum(durations[:-1]))
-    for index, (image_path, clip_duration) in enumerate(zip(images, durations), start=1):
-        clip_path = scene_dir / f"clip-{index:02}.mp4"
-        # Alternate camera movement so each still feels like a different documentary shot.
-        if index % 3 == 1:
-            motion = f"zoompan=z='min(zoom+0.0012,1.16)':d=1:x='(iw-iw/zoom)*(0.25+0.5*on/{max(1, clip_duration * 30):.3f})':y='(ih-ih/zoom)*0.42':s=720x1280:fps=30"
-        elif index % 3 == 2:
-            motion = f"zoompan=z='min(zoom+0.0010,1.13)':d=1:x='(iw-iw/zoom)*0.72':y='(ih-ih/zoom)*(0.65-0.35*on/{max(1, clip_duration * 30):.3f})':s=720x1280:fps=30"
-        else:
-            motion = f"zoompan=z='if(lte(zoom,1.12),1.12,max(1.0,zoom-0.0007))':d=1:x='(iw-iw/zoom)*(0.65-0.3*on/{max(1, clip_duration * 30):.3f})':y='(ih-ih/zoom)*(0.25+0.5*on/{max(1, clip_duration * 30):.3f})':s=720x1280:fps=30"
-        run([
-            "ffmpeg", "-y", "-loop", "1", "-framerate", "30", "-i", str(image_path),
-            "-t", f"{clip_duration:.3f}",
-            "-vf", "scale=900:1600:force_original_aspect_ratio=increase,"
-                   "crop=900:1600," + motion + ",setsar=1",
-            "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-            "-pix_fmt", "yuv420p", str(clip_path),
-        ])
-        clip_paths.append(clip_path)
-
-    # Crossfade scene changes instead of making abrupt cuts between generated images.
-    stitched_path = scene_dir / "stitched.mp4"
-    if len(clip_paths) == 1:
-        run(["ffmpeg", "-y", "-i", str(clip_paths[0]), "-c", "copy", str(stitched_path)])
-    else:
-        fade = min(0.45, max(0.15, duration / (len(clip_paths) * 5)))
-        offsets = []
-        elapsed = durations[0]
-        for clip_duration in durations[1:-1]:
-            offsets.append(elapsed - fade)
-            elapsed += clip_duration - fade
-        offsets.append(elapsed - fade)
-        filters = []
-        current = "[0:v]"
-        for idx in range(1, len(clip_paths)):
-            out_label = f"[xf{idx}]"
-            filters.append(
-                f"{current}[{idx}:v]xfade=transition=fade:duration={fade:.3f}:"
-                f"offset={offsets[idx-1]:.3f}{out_label}"
-            )
-            current = out_label
-        run([
-            "ffmpeg", "-y",
-            *sum((["-i", str(path)] for path in clip_paths), []),
-            "-filter_complex", ";".join(filters),
-            "-map", current, "-an", "-c:v", "libx264", "-preset", "veryfast",
-            "-crf", "23", "-pix_fmt", "yuv420p", str(stitched_path),
-        ])
-
-    # The AI images supply the context; title and subtitles remain legible over them.
-    ai_filter = (
-        "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
-        "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
-        f"drawtext=text='{title}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
-        "borderw=3:bordercolor=black@0.85:x=(w-text_w)/2:y=96,"
-        f"subtitles='{srt_path.as_posix()}':force_style="
-        "'FontName=DejaVu Sans,FontSize=13,Bold=1,PrimaryColour=&H00FFFFFF,"
-        "OutlineColour=&H00101010,BorderStyle=1,BackColour=&H00000000,"
-        "Outline=1,Shadow=0,Alignment=2,MarginL=90,MarginR=90,MarginV=105'"
-
-    )
-    run([
-        "ffmpeg", "-y", "-i", str(stitched_path), "-i", str(audio_path),
-        "-map", "0:v:0", "-map", "1:a:0", "-vf", ai_filter,
         "-t", f"{duration:.3f}", "-c:v", "libx264", "-preset", "veryfast",
         "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
         "-shortest", "-movflags", "+faststart", str(video_path),
@@ -402,48 +224,39 @@ def main() -> None:
     duration = float(duration_text)
     write_srt(narration, duration, srt_path)
 
-    # Prefer one relevant Pixabay clip. Any missing key, empty result, API limit,
-    # network failure, or oversized download falls through to the existing visuals.
+    # Use moving Pixabay footage when available; never use still images as backgrounds.
     pixabay_video = fetch_pixabay_video(fact["title"])
     if pixabay_video:
-        print("Rendering Pixabay stock video with the existing narration and captions...")
+        print("Rendering Pixabay stock video with expanded narration and captions...")
         render_pixabay_video(pixabay_video, duration, video_path, audio_path, srt_path, fact["title"])
         visual_style = "Pixabay stock footage cropped to vertical 9:16"
     else:
-        ai_images = generate_ai_images(fact["title"])
-        if ai_images:
-            print("Rendering contextual AI-scene video...")
-            render_ai_scene_video(ai_images, duration, video_path, audio_path, srt_path, fact["title"])
-            visual_style = "three contextual AI-generated images with gentle camera motion"
-        else:
-            # Fallback: animated geometric accents work even without API credentials.
-            subtitle_filter = (
-                "drawbox=x='mod(t*42\\,900)-180':y=0:w=220:h=1280:color=0x2563EB@0.16:t=fill,"
-                "drawbox=x=720-mod(t*27\\,1000):y=0:w=160:h=1280:color=0x7C3AED@0.12:t=fill,"
-                "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
-                "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
-                f"drawtext=text='{fact['title']}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
-                "borderw=3:bordercolor=black@0.85:x=(w-text_w)/2:y=96,"
-                f"subtitles='{srt_path.as_posix()}':force_style="
-                "'FontName=DejaVu Sans,FontSize=13,Bold=1,PrimaryColour=&H00FFFFFF,"
-                "OutlineColour=&H00101010,BorderStyle=1,BackColour=&H00000000,"
-                "Outline=1,Shadow=0,Alignment=2,MarginL=90,MarginR=90,MarginV=105'"
-
-            )
-            print("Rendering animated-background fallback MP4...")
-            run([
-                "ffmpeg", "-y",
-                "-f", "lavfi", "-i", "color=c=0x101B35:s=720x1280:r=30",
-                "-i", str(audio_path),
-                "-map", "0:v:0", "-map", "1:a:0",
-                "-vf", subtitle_filter,
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-                "-pix_fmt", "yuv420p",
-                "-c:a", "aac", "-b:a", "128k",
-                "-shortest", "-movflags", "+faststart",
-                str(video_path),
-            ])
-            visual_style = "animated geometric background (AI images not configured or unavailable)"
+        # Free fallback: animated color shapes, not a still-image background.
+        subtitle_filter = (
+            "drawbox=x='mod(t*42\\,900)-180':y=0:w=220:h=1280:color=0x2563EB@0.16:t=fill,"
+            "drawbox=x=720-mod(t*27\\,1000):y=0:w=160:h=1280:color=0x7C3AED@0.12:t=fill,"
+            "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
+            "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
+            f"drawtext=text='{fact['title']}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
+            "borderw=3:bordercolor=black@0.85:x=(w-text_w)/2:y=96,"
+            f"subtitles='{srt_path.as_posix()}':force_style="
+            "'FontName=DejaVu Sans,FontSize=13,Bold=1,PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H00101010,BorderStyle=1,BackColour=&H00000000,"
+            "Outline=1,Shadow=0,Alignment=2,MarginL=90,MarginR=90,MarginV=105'"
+        )
+        print("Rendering animated-background fallback MP4...")
+        run([
+            "ffmpeg", "-y",
+            "-f", "lavfi", "-i", "color=c=0x101B35:s=720x1280:r=30",
+            "-i", str(audio_path),
+            "-map", "0:v:0", "-map", "1:a:0",
+            "-vf", subtitle_filter,
+            "-t", f"{duration:.3f}",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
+            "-shortest", "-movflags", "+faststart", str(video_path),
+        ])
+        visual_style = "animated geometric background (no stock clip available)"
 
     metadata_path.write_text(json.dumps({
         "date": date.today().isoformat(),
@@ -453,10 +266,11 @@ def main() -> None:
         "video_file": video_path.name,
         "visual_style": visual_style,
         "caption_style": "bold high-contrast mobile subtitles",
+        "target_duration_seconds": 45,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"SUCCESS: {video_path}")
-    print(f"Duration: {duration:.1f} seconds")
+    print(f"Duration: {duration:.1f} seconds (target: about 45 seconds)")
 
 
 if __name__ == "__main__":
