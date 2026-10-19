@@ -145,15 +145,33 @@ def fetch_pixabay_video(title: str) -> Path | None:
             payload = json.loads(response.read().decode("utf-8"))
 
         hits = payload.get("hits", [])
-        chosen = None
+        # Require a topic-specific tag; generic space footage should not be
+        # presented as Jupiter footage, for example.
+        required_tag = {
+            "BAKIT ASUL ANG LANGIT?": ("sky", "cloud"),
+            "TUNOG SA KALAWAKAN": ("astronaut", "space"),
+            "MAY TUBIG SA BUWAN": ("moon", "lunar"),
+            "MAS MABAGAL ANG ORAS": ("satellite", "orbit"),
+            "ANG PUSO NG OCTOPUS": ("octopus",),
+            "HINDI BITUIN ANG VENUS": ("venus",),
+            "BAKIT LUMULUTANG ANG YELO?": ("ice", "water"),
+            "MAY AMOY ANG KALAWAKAN?": ("spacewalk", "astronaut"),
+            "ANG HIGANTENG JUPITER": ("jupiter",),
+            "HALOS WALANG TUNOG ANG BUWAN": ("moon", "lunar"),
+        }.get(title, ())
+        ranked = []
         for hit in hits:
+            tags = {tag.strip().lower() for tag in hit.get("tags", "").split(",")}
+            relevance = sum(tag in tags for tag in required_tag)
             variants = hit.get("videos", {})
             candidate = variants.get("medium") or variants.get("small") or variants.get("large")
-            if candidate and candidate.get("url"):
-                chosen = candidate
-                break
+            if candidate and candidate.get("url") and relevance:
+                ranked.append((relevance, candidate))
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        chosen = ranked[0][1] if ranked else None
         if not chosen:
-            print(f"Pixabay returned no usable video for '{query}'.")
+            print(f"Pixabay had no clearly topic-matched clip for '{query}'.")
+            print("Using the animated background rather than unrelated stock footage.")
             return None
 
         video_path.parent.mkdir(exist_ok=True)
