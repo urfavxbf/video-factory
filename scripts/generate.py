@@ -125,7 +125,7 @@ PIXABAY_QUERIES = {
     "MAY AMOY ANG KALAWAKAN?": "astronaut spacewalk",
     "ANG HIGANTENG JUPITER": "Jupiter planet space",
     "HALOS WALANG TUNOG ANG BUWAN": "astronaut moon",
-    "BAKIT PARANG NARANASAN NA NATIN ITO?": "human brain memory thinking person",
+    "BAKIT PARANG NARANASAN NA NATIN ITO?": "brain memory person thinking",
 }
 
 
@@ -162,6 +162,7 @@ def fetch_pixabay_videos(title: str, max_clips: int = 3) -> list[Path]:
             "MAY AMOY ANG KALAWAKAN?": ("spacewalk", "astronaut"),
             "ANG HIGANTENG JUPITER": ("jupiter",),
             "HALOS WALANG TUNOG ANG BUWAN": ("moon", "lunar"),
+            "BAKIT PARANG NARANASAN NA NATIN ITO?": ("brain", "memory", "thinking", "person"),
         }.get(title, ())
         ranked = []
         seen_ids = set()
@@ -175,10 +176,44 @@ def fetch_pixabay_videos(title: str, max_clips: int = 3) -> list[Path]:
                 ranked.append((relevance, video_id, candidate))
                 seen_ids.add(video_id)
         ranked.sort(key=lambda item: item[0], reverse=True)
+        # Search terms already target the topic. If strict tag matching returns
+        # nothing, still try the best valid clips from broader searches.
+        if not ranked:
+            print(f"No exact tag match for '{query}'; retrying with broader Pixabay search terms.")
+            broad_queries = {
+                "BAKIT PARANG NARANASAN NA NATIN ITO?": [
+                    "human brain", "person thinking", "memory psychology"
+                ],
+                "HALOS WALANG TUNOG ANG BUWAN": ["moon astronaut", "lunar surface"],
+            }.get(title, [query.split()[0], query])
+            for broad_query in broad_queries:
+                retry_params = urllib.parse.urlencode({
+                    "key": api_key, "q": broad_query, "video_type": "film",
+                    "safesearch": "true", "per_page": 20, "order": "popular",
+                })
+                retry_request = urllib.request.Request(
+                    f"https://pixabay.com/api/videos/?{retry_params}",
+                    headers={"User-Agent": "video-factory/1.0"},
+                )
+                try:
+                    with urllib.request.urlopen(retry_request, timeout=20) as response:
+                        retry_payload = json.loads(response.read().decode("utf-8"))
+                    for hit in retry_payload.get("hits", []):
+                        variants = hit.get("videos", {})
+                        candidate = variants.get("medium") or variants.get("small") or variants.get("large")
+                        video_id = hit.get("id")
+                        if candidate and candidate.get("url") and video_id not in seen_ids:
+                            ranked.append((0, video_id, candidate))
+                            seen_ids.add(video_id)
+                    if ranked:
+                        print(f"Pixabay retry found usable results for '{broad_query}'.")
+                        break
+                except Exception as exc:
+                    print(f"Pixabay retry '{broad_query}' failed ({type(exc).__name__}: {exc}).")
         chosen = ranked[:max_clips]
         if not chosen:
-            print(f"Pixabay had no clearly topic-matched clip for '{query}'.")
-            print("Using the animated background rather than unrelated stock footage.")
+            print(f"Pixabay returned no usable clips for '{query}' after broader retries.")
+            print("Using the animated background as the final fallback.")
             return []
 
         downloaded: list[Path] = []
