@@ -99,14 +99,25 @@ class MainActivity : ComponentActivity() {
                     } finally { surface.unlockCanvasAndPost(canvas) }
                     val bufferInfo = MediaCodec.BufferInfo()
                     var outputIndex = encoder.dequeueOutputBuffer(bufferInfo, 0)
-                    while (outputIndex >= 0) {
-                        val encoded = encoder.getOutputBuffer(outputIndex)
-                        if (encoded != null && bufferInfo.size > 0 && muxerStarted) {
-                            encoded.position(bufferInfo.offset)
-                            encoded.limit(bufferInfo.offset + bufferInfo.size)
-                            muxer.writeSampleData(track, encoded, bufferInfo)
+                    while (outputIndex != MediaCodec.INFO_TRY_AGAIN_LATER) {
+                        when {
+                            outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                                if (!muxerStarted) {
+                                    track = muxer.addTrack(encoder.outputFormat)
+                                    muxer.start()
+                                    muxerStarted = true
+                                }
+                            }
+                            outputIndex >= 0 -> {
+                                val encoded = encoder.getOutputBuffer(outputIndex)
+                                if (encoded != null && bufferInfo.size > 0 && muxerStarted) {
+                                    encoded.position(bufferInfo.offset)
+                                    encoded.limit(bufferInfo.offset + bufferInfo.size)
+                                    muxer.writeSampleData(track, encoded, bufferInfo)
+                                }
+                                encoder.releaseOutputBuffer(outputIndex, false)
+                            }
                         }
-                        encoder.releaseOutputBuffer(outputIndex, false)
                         outputIndex = encoder.dequeueOutputBuffer(bufferInfo, 0)
                     }
                     Thread.sleep(1000L / fps)
@@ -117,9 +128,11 @@ class MainActivity : ComponentActivity() {
                     val index = encoder.dequeueOutputBuffer(info, 10_000)
                     when {
                         index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                            track = muxer.addTrack(encoder.outputFormat)
-                            muxer.start()
-                            muxerStarted = true
+                            if (!muxerStarted) {
+                                track = muxer.addTrack(encoder.outputFormat)
+                                muxer.start()
+                                muxerStarted = true
+                            }
                         }
                         index >= 0 -> {
                             val data = encoder.getOutputBuffer(index)
