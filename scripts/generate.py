@@ -7,6 +7,7 @@ import re
 import subprocess
 import urllib.error
 import urllib.request
+import urllib.parse
 from datetime import date
 from pathlib import Path
 
@@ -157,6 +158,105 @@ VISUAL_SCENES = {
 }
 
 
+
+PIXABAY_QUERIES = {
+    "BAKIT ASUL ANG LANGIT?": "blue sky clouds",
+    "TUNOG SA KALAWAKAN": "astronaut space earth",
+    "MAY TUBIG SA BUWAN": "moon lunar surface",
+    "MAS MABAGAL ANG ORAS": "satellite earth orbit",
+    "ANG PUSO NG OCTOPUS": "octopus underwater",
+    "HINDI BITUIN ANG VENUS": "planet venus space",
+    "BAKIT LUMULUTANG ANG YELO?": "ice water",
+    "MAY AMOY ANG KALAWAKAN?": "astronaut spacewalk",
+    "ANG HIGANTENG JUPITER": "Jupiter planet space",
+    "HALOS WALANG TUNOG ANG BUWAN": "astronaut moon",
+}
+
+
+def fetch_pixabay_video(title: str) -> Path | None:
+    """Fetch one relevant Pixabay stock clip; fail safely to existing visual fallbacks."""
+    api_key = os.getenv("PIXABAY_API_KEY", "").strip()
+    query = PIXABAY_QUERIES.get(title)
+    if not api_key or not query:
+        print("Pixabay is not configured; checking the existing AI-image option.")
+        return None
+
+    video_path = OUT / "pixabay" / "stock-background.mp4"
+    try:
+        params = urllib.parse.urlencode({
+            "key": api_key, "q": query, "video_type": "film",
+            "safesearch": "true", "per_page": 8, "order": "popular",
+        })
+        request = urllib.request.Request(
+            f"https://pixabay.com/api/videos/?{params}",
+            headers={"User-Agent": "video-factory/1.0"},
+        )
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+
+        hits = payload.get("hits", [])
+        chosen = None
+        for hit in hits:
+            variants = hit.get("videos", {})
+            candidate = variants.get("medium") or variants.get("small") or variants.get("large")
+            if candidate and candidate.get("url"):
+                chosen = candidate
+                break
+        if not chosen:
+            print(f"Pixabay returned no usable video for '{query}'.")
+            return None
+
+        video_path.parent.mkdir(exist_ok=True)
+        download_request = urllib.request.Request(
+            chosen["url"], headers={"User-Agent": "video-factory/1.0"}
+        )
+        total = 0
+        max_bytes = 80 * 1024 * 1024
+        with urllib.request.urlopen(download_request, timeout=30) as response:
+            with video_path.open("wb") as output:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > max_bytes:
+                        raise RuntimeError("Pixabay clip exceeded the 80 MB safety limit.")
+                    output.write(chunk)
+        if total == 0:
+            raise RuntimeError("Pixabay returned an empty video file.")
+        print(f"Downloaded Pixabay stock video ({total // (1024 * 1024)} MB).")
+        return video_path
+    except Exception as exc:
+        print(f"Pixabay video unavailable ({type(exc).__name__}: {exc}).")
+        print("Falling back to Cloudflare AI images, then the animated background.")
+        video_path.unlink(missing_ok=True)
+        return None
+
+
+def render_pixabay_video(source_path: Path, duration: float, video_path: Path,
+                         audio_path: Path, srt_path: Path, title: str) -> None:
+    """Crop/loop stock footage vertically; narration and captions remain unchanged."""
+    video_filter = (
+        "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
+        "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
+        f"drawtext=text='{title}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
+        "borderw=3:bordercolor=black@0.85:x=(w-text_w)/2:y=96,"
+        f"subtitles='{srt_path.as_posix()}':force_style="
+        "'FontName=DejaVu Sans,FontSize=13,Bold=1,PrimaryColour=&H00FFFFFF,"
+        "OutlineColour=&H00101010,BorderStyle=1,BackColour=&H00000000,"
+        "Outline=1,Shadow=0,Alignment=2,MarginL=90,MarginR=90,MarginV=105'"
+    )
+    run([
+        "ffmpeg", "-y", "-stream_loop", "-1", "-i", str(source_path),
+        "-i", str(audio_path), "-map", "0:v:0", "-map", "1:a:0",
+        "-vf", "scale=720:1280:force_original_aspect_ratio=increase,"
+               "crop=720:1280,fps=30,setsar=1," + video_filter,
+        "-t", f"{duration:.3f}", "-c:v", "libx264", "-preset", "veryfast",
+        "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
+        "-shortest", "-movflags", "+faststart", str(video_path),
+    ])
+
+
 def generate_ai_images(title: str) -> list[Path]:
     """Generate three story-matched images when Cloudflare credentials are configured."""
     account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
@@ -302,40 +402,48 @@ def main() -> None:
     duration = float(duration_text)
     write_srt(narration, duration, srt_path)
 
-    ai_images = generate_ai_images(fact["title"])
-    if ai_images:
-        print("Rendering contextual AI-scene video...")
-        render_ai_scene_video(ai_images, duration, video_path, audio_path, srt_path, fact["title"])
-        visual_style = "three contextual AI-generated images with gentle camera motion"
+    # Prefer one relevant Pixabay clip. Any missing key, empty result, API limit,
+    # network failure, or oversized download falls through to the existing visuals.
+    pixabay_video = fetch_pixabay_video(fact["title"])
+    if pixabay_video:
+        print("Rendering Pixabay stock video with the existing narration and captions...")
+        render_pixabay_video(pixabay_video, duration, video_path, audio_path, srt_path, fact["title"])
+        visual_style = "Pixabay stock footage cropped to vertical 9:16"
     else:
-        # Fallback: animated geometric accents work even without API credentials.
-        subtitle_filter = (
-            "drawbox=x='mod(t*42\\,900)-180':y=0:w=220:h=1280:color=0x2563EB@0.16:t=fill,"
-            "drawbox=x=720-mod(t*27\\,1000):y=0:w=160:h=1280:color=0x7C3AED@0.12:t=fill,"
-            "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
-            "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
-            f"drawtext=text='{fact['title']}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
-            "borderw=3:bordercolor=black@0.85:x=(w-text_w)/2:y=96,"
-            f"subtitles='{srt_path.as_posix()}':force_style="
-            "'FontName=DejaVu Sans,FontSize=13,Bold=1,PrimaryColour=&H00FFFFFF,"
-            "OutlineColour=&H00101010,BorderStyle=1,BackColour=&H00000000,"
-            "Outline=1,Shadow=0,Alignment=2,MarginL=90,MarginR=90,MarginV=105'"
+        ai_images = generate_ai_images(fact["title"])
+        if ai_images:
+            print("Rendering contextual AI-scene video...")
+            render_ai_scene_video(ai_images, duration, video_path, audio_path, srt_path, fact["title"])
+            visual_style = "three contextual AI-generated images with gentle camera motion"
+        else:
+            # Fallback: animated geometric accents work even without API credentials.
+            subtitle_filter = (
+                "drawbox=x='mod(t*42\\,900)-180':y=0:w=220:h=1280:color=0x2563EB@0.16:t=fill,"
+                "drawbox=x=720-mod(t*27\\,1000):y=0:w=160:h=1280:color=0x7C3AED@0.12:t=fill,"
+                "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
+                "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
+                f"drawtext=text='{fact['title']}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
+                "borderw=3:bordercolor=black@0.85:x=(w-text_w)/2:y=96,"
+                f"subtitles='{srt_path.as_posix()}':force_style="
+                "'FontName=DejaVu Sans,FontSize=13,Bold=1,PrimaryColour=&H00FFFFFF,"
+                "OutlineColour=&H00101010,BorderStyle=1,BackColour=&H00000000,"
+                "Outline=1,Shadow=0,Alignment=2,MarginL=90,MarginR=90,MarginV=105'"
 
-        )
-        print("Rendering animated-background fallback MP4...")
-        run([
-            "ffmpeg", "-y",
-            "-f", "lavfi", "-i", "color=c=0x101B35:s=720x1280:r=30",
-            "-i", str(audio_path),
-            "-map", "0:v:0", "-map", "1:a:0",
-            "-vf", subtitle_filter,
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "128k",
-            "-shortest", "-movflags", "+faststart",
-            str(video_path),
-        ])
-        visual_style = "animated geometric background (AI images not configured or unavailable)"
+            )
+            print("Rendering animated-background fallback MP4...")
+            run([
+                "ffmpeg", "-y",
+                "-f", "lavfi", "-i", "color=c=0x101B35:s=720x1280:r=30",
+                "-i", str(audio_path),
+                "-map", "0:v:0", "-map", "1:a:0",
+                "-vf", subtitle_filter,
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+                "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-b:a", "128k",
+                "-shortest", "-movflags", "+faststart",
+                str(video_path),
+            ])
+            visual_style = "animated geometric background (AI images not configured or unavailable)"
 
     metadata_path.write_text(json.dumps({
         "date": date.today().isoformat(),
