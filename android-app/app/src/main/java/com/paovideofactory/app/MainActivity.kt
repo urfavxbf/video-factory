@@ -55,11 +55,11 @@ class MainActivity : ComponentActivity() {
                 if (ttsReady) tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "vf-narration")
                 else Toast.makeText(this, "Hindi pa handa ang Text-to-Speech sa device.", Toast.LENGTH_LONG).show()
             },
-            onGenerateVideo = { title ->
-                Toast.makeText(this, "Ginagawa ang MP4. Huwag munang isara ang app.", Toast.LENGTH_LONG).show()
+            onGenerateVideo = { title, script ->
+                Toast.makeText(this, "Ginagawa ang 45-second MP4. Huwag munang isara ang app.", Toast.LENGTH_LONG).show()
                 Thread {
                     try {
-                        renderVideoToGallery(this, title)
+                        renderVideoToGallery(this, title, script)
                         runOnUiThread { Toast.makeText(this, "Tapos na! Nasa Movies/Video Factory ang MP4.", Toast.LENGTH_LONG).show() }
                     } catch (e: Exception) {
                         runOnUiThread { Toast.makeText(this, "Hindi nagawa ang video: ${e.message ?: "encoding error"}", Toast.LENGTH_LONG).show() }
@@ -92,7 +92,7 @@ private fun makePack(topic: String): VideoPack {
 }
 
 @Composable
-private fun VideoFactoryScreen(onSpeak: (String) -> Unit, onGenerateVideo: (String) -> Unit) {
+private fun VideoFactoryScreen(onSpeak: (String) -> Unit, onGenerateVideo: (String, String) -> Unit) {
     val context = LocalContext.current
     var topic by remember { mutableStateOf("mga misteryo ng kalawakan") }
     var pack by remember { mutableStateOf(makePack(topic)) }
@@ -150,7 +150,7 @@ private fun VideoFactoryScreen(onSpeak: (String) -> Unit, onGenerateVideo: (Stri
             }
 
             Button(
-                onClick = { onGenerateVideo(pack.title) },
+                onClick = { onGenerateVideo(pack.title, pack.script) },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("▶  GENERATE & SAVE MP4") }
 
@@ -164,7 +164,7 @@ private fun VideoFactoryScreen(onSpeak: (String) -> Unit, onGenerateVideo: (Stri
 
             Text(notice, color = accent, fontSize = 12.sp)
             Text(
-                "MVP 0.2 • Content pack + TTS preview + on-device MP4 export.",
+                "MVP 0.3 • 45-second animated space background + timed subtitles. Narration audio is the next upgrade.",
                 color = Color.Gray, fontSize = 11.sp
             )
             Spacer(Modifier.height(12.dp))
@@ -195,11 +195,11 @@ private fun copyText(context: Context, label: String, text: String) {
  * Android MediaCodec + MediaMuxer. This first version exports silent video;
  * narration audio muxing is the next milestone.
  */
-private fun renderVideoToGallery(context: Context, title: String) {
+private fun renderVideoToGallery(context: Context, title: String, script: String) {
     val width = 360
     val height = 640
     val fps = 15
-    val durationSeconds = 12
+    val durationSeconds = 45
     val frameCount = fps * durationSeconds
     val mime = "video/avc"
     val values = ContentValues().apply {
@@ -248,7 +248,7 @@ private fun renderVideoToGallery(context: Context, title: String) {
                             codec!!.queueInputBuffer(inputIndex, 0, 0, frameIndex.toLong() * 1_000_000L / fps, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                             inputDone = true
                         } else {
-                            drawVideoFrame(canvas, paint, width, height, cleanTitle, frameIndex, frameCount)
+                            drawVideoFrame(canvas, paint, width, height, cleanTitle, script, frameIndex, frameCount)
                             val yuv = bitmapToNv12(bitmap)
                             input.clear()
                             input.put(yuv)
@@ -298,18 +298,38 @@ private fun drawVideoFrame(
     width: Int,
     height: Int,
     title: String,
+    script: String,
     frame: Int,
     totalFrames: Int
 ) {
     val phase = frame.toFloat() / totalFrames
-    val top = AndroidColor.rgb((16 + 22 * phase).toInt(), (35 + 12 * phase).toInt(), 75)
-    canvas.drawColor(top)
+    val seconds = frame / 15f
+    val r = (10 + 8 * (0.5 + 0.5 * kotlin.math.sin(phase * 6.283)).toInt()).coerceIn(10, 18)
+    canvas.drawColor(AndroidColor.rgb(r, 13, 37))
+
+    // Moving starfield and glowing planet-like shapes create motion without static images.
+    for (i in 0 until 42) {
+        val x = ((i * 83 + seconds * (8 + i % 5) * (if (i % 2 == 0) 1 else -1)) % width + width) % width.toFloat()
+        val y = ((i * 137) % height).toFloat()
+        paint.color = AndroidColor.argb(100 + (i % 5) * 30, 190, 220, 255)
+        paint.style = Paint.Style.FILL
+        canvas.drawCircle(x, y, 1.2f + (i % 3) * 0.6f, paint)
+    }
+    paint.color = AndroidColor.argb(65, 80, 100, 255)
+    canvas.drawCircle(width * (0.78f - 0.04f * kotlin.math.sin(phase * 6.283).toFloat()), height * 0.34f, 115f, paint)
+    paint.color = AndroidColor.argb(110, 55, 125, 245)
+    canvas.drawCircle(width * 0.78f, height * 0.34f, 72f, paint)
+    paint.color = AndroidColor.argb(90, 130, 210, 255)
+    canvas.drawCircle(width * 0.75f, height * 0.30f, 18f, paint)
+
     paint.color = AndroidColor.rgb(114, 242, 195)
-    paint.textSize = 24f
+    paint.textSize = 22f
     paint.typeface = android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD)
-    canvas.drawText("ALAM MO BA?", width / 2f, 145f, paint)
+    canvas.drawText("ALAM MO BA?", width / 2f, 112f, paint)
+
+    // Headline stays in the safe center area.
     paint.color = AndroidColor.WHITE
-    paint.textSize = 30f
+    paint.textSize = 27f
     val words = title.split(" ")
     val lines = mutableListOf<String>()
     var line = ""
@@ -321,17 +341,43 @@ private fun drawVideoFrame(
         } else line = candidate
     }
     if (line.isNotEmpty()) lines.add(line)
-    val visibleLines = lines.take(7)
-    val startY = height / 2f - (visibleLines.size - 1) * 20f
+    val visibleLines = lines.take(5)
     visibleLines.forEachIndexed { index, text ->
-        canvas.drawText(text, width / 2f, startY + index * 42f, paint)
+        canvas.drawText(text, width / 2f, 250f + index * 36f, paint)
     }
+
+    // Timed lower-center subtitle cards, split into short readable phrases.
+    val chunks = script.split(Regex("(?<=[.!?])\\s+")).filter { it.isNotBlank() }
+    val subtitle = if (chunks.isEmpty()) "" else chunks[((frame.toLong() * chunks.size) / totalFrames).toInt().coerceIn(0, chunks.lastIndex)]
+    paint.textSize = 17f
+    paint.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+    val subWords = subtitle.split(" ")
+    val subLines = mutableListOf<String>()
+    var subLine = ""
+    for (word in subWords) {
+        val candidate = if (subLine.isEmpty()) word else "$subLine $word"
+        if (paint.measureText(candidate) > width - 44 && subLine.isNotEmpty()) {
+            subLines.add(subLine)
+            subLine = word
+        } else subLine = candidate
+    }
+    if (subLine.isNotEmpty()) subLines.add(subLine)
+    val shownSubs = subLines.take(3)
+    val boxTop = height - 178f
+    paint.color = AndroidColor.argb(205, 4, 8, 22)
+    canvas.drawRoundRect(18f, boxTop, width - 18f, height - 92f, 18f, 18f, paint)
+    paint.color = AndroidColor.WHITE
+    shownSubs.forEachIndexed { index, text ->
+        canvas.drawText(text, width / 2f, boxTop + 31f + index * 23f, paint)
+    }
+
     paint.color = AndroidColor.LTGRAY
-    paint.textSize = 13f
+    paint.textSize = 11f
     paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
-    canvas.drawText("FACTS • KNOWLEDGE • CURIOSITY", width / 2f, height - 70f, paint)
+    canvas.drawText("FACTS • KNOWLEDGE • CURIOSITY", width / 2f, height - 54f, paint)
     paint.color = AndroidColor.rgb(114, 242, 195)
-    canvas.drawRect(24f, height - 35f, 24f + (width - 48f) * phase, height - 29f, paint)
+    canvas.drawRect(18f, height - 25f, 18f + (width - 36f) * phase, height - 19f, paint)
+    paint.style = Paint.Style.FILL
 }
 
 private fun bitmapToNv12(bitmap: Bitmap): ByteArray {
