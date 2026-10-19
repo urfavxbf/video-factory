@@ -244,7 +244,6 @@ def render_pixabay_video(source_paths: list[Path], duration: float, video_path: 
         current_label = output_label
         current_duration += segment_duration - transition
 
-    filter_complex = ";".join(filters)
     video_filter = (
         "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
         "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
@@ -255,11 +254,13 @@ def render_pixabay_video(source_paths: list[Path], duration: float, video_path: 
         "OutlineColour=&H00101010,BorderStyle=1,BackColour=&H00000000,"
         "Outline=1,Shadow=0,Alignment=2,MarginL=90,MarginR=90,MarginV=105'"
     )
+    # Keep the xfade output, title overlays, and subtitles in one filter graph.
+    filters.append(f"{current_label}{video_filter}[finalv]")
+    filter_complex = ";".join(filters)
     run([
         "ffmpeg", "-y", *inputs, "-i", str(audio_path),
         "-filter_complex", filter_complex,
-        "-map", current_label, "-map", f"{len(source_paths)}:a:0",
-        "-vf", video_filter,
+        "-map", "[finalv]", "-map", f"{len(source_paths)}:a:0",
         "-t", f"{duration:.3f}", "-c:v", "libx264", "-preset", "veryfast",
         "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
         "-shortest", "-movflags", "+faststart", str(video_path),
