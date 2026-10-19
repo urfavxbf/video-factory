@@ -10,6 +10,13 @@ import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import android.media.MediaMetadataRetriever
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import java.io.File
+import java.io.FileOutputStream
 import android.content.ContentValues
 import android.os.Environment
 import android.provider.MediaStore
@@ -51,20 +58,26 @@ class MainActivity : ComponentActivity() {
             if (ttsReady) tts?.language = Locale("fil", "PH")
         }
         setContent { VideoFactoryScreen(
+            initialPixabayKey = getSharedPreferences("video_factory", MODE_PRIVATE).getString("pixabay_key", "") ?: "",
+            onSavePixabayKey = { key -> getSharedPreferences("video_factory", MODE_PRIVATE).edit().putString("pixabay_key", key.trim()).apply() },
             onSpeak = { text ->
                 if (ttsReady) tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "vf-narration")
                 else Toast.makeText(this, "Hindi pa handa ang Text-to-Speech sa device.", Toast.LENGTH_LONG).show()
             },
-            onGenerateVideo = { title, script ->
-                Toast.makeText(this, "Ginagawa ang 45-second MP4. Huwag munang isara ang app.", Toast.LENGTH_LONG).show()
-                Thread {
-                    try {
-                        renderVideoToGallery(this, title, script)
-                        runOnUiThread { Toast.makeText(this, "Tapos na! Nasa Movies/Video Factory ang MP4.", Toast.LENGTH_LONG).show() }
-                    } catch (e: Exception) {
-                        runOnUiThread { Toast.makeText(this, "Hindi nagawa ang video: ${e.message ?: "encoding error"}", Toast.LENGTH_LONG).show() }
-                    }
-                }.start()
+            onGenerateVideo = { title, script, topic, pixabayKey ->
+                if (pixabayKey.isBlank()) {
+                    Toast.makeText(this, "Ilagay ang Pixabay API key para makakuha ng background video.", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this, "Naghahanap ng background video sa Pixabay...", Toast.LENGTH_LONG).show()
+                    Thread {
+                        try {
+                            renderVideoToGallery(this, title, script, topic, pixabayKey)
+                            runOnUiThread { Toast.makeText(this, "Tapos na! Nasa Movies/Video Factory ang MP4.", Toast.LENGTH_LONG).show() }
+                        } catch (e: Exception) {
+                            runOnUiThread { Toast.makeText(this, "Hindi nagawa ang video: ${e.message ?: "encoding error"}", Toast.LENGTH_LONG).show() }
+                        }
+                    }.start()
+                }
             }
         ) }
     }
@@ -92,9 +105,15 @@ private fun makePack(topic: String): VideoPack {
 }
 
 @Composable
-private fun VideoFactoryScreen(onSpeak: (String) -> Unit, onGenerateVideo: (String, String) -> Unit) {
+private fun VideoFactoryScreen(
+    initialPixabayKey: String,
+    onSavePixabayKey: (String) -> Unit,
+    onSpeak: (String) -> Unit,
+    onGenerateVideo: (String, String, String, String) -> Unit
+) {
     val context = LocalContext.current
     var topic by remember { mutableStateOf("mga misteryo ng kalawakan") }
+    var pixabayKey by remember { mutableStateOf(initialPixabayKey) }
     var pack by remember { mutableStateOf(makePack(topic)) }
     var notice by remember { mutableStateOf("Ilagay ang topic at pindutin ang Generate Pack.") }
     val bg = Color(0xFF0A0F1E)
@@ -126,6 +145,14 @@ private fun VideoFactoryScreen(onSpeak: (String) -> Unit, onGenerateVideo: (Stri
                         value = topic, onValueChange = { topic = it }, label = { Text("Anong topic ng video?") },
                         modifier = Modifier.fillMaxWidth(), minLines = 2
                     )
+                    OutlinedTextField(
+                        value = pixabayKey,
+                        onValueChange = { pixabayKey = it; onSavePixabayKey(it) },
+                        label = { Text("Pixabay API key") },
+                        supportingText = { Text("Kailangan para makakuha ng totoong background video.") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
                     Button(
                         onClick = { pack = makePack(topic); notice = "Nagawa ang title, script, caption at hashtags." },
                         modifier = Modifier.fillMaxWidth()
@@ -150,7 +177,7 @@ private fun VideoFactoryScreen(onSpeak: (String) -> Unit, onGenerateVideo: (Stri
             }
 
             Button(
-                onClick = { onGenerateVideo(pack.title, pack.script) },
+                onClick = { onGenerateVideo(pack.title, pack.script, topic, pixabayKey) },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("▶  GENERATE & SAVE MP4") }
 
@@ -164,7 +191,7 @@ private fun VideoFactoryScreen(onSpeak: (String) -> Unit, onGenerateVideo: (Stri
 
             Text(notice, color = accent, fontSize = 12.sp)
             Text(
-                "MVP 0.3 • 45-second animated space background + timed subtitles. Narration audio is the next upgrade.",
+                "Pixabay moving footage + timed subtitles. Narration audio is the next upgrade.",
                 color = Color.Gray, fontSize = 11.sp
             )
             Spacer(Modifier.height(12.dp))
@@ -195,12 +222,15 @@ private fun copyText(context: Context, label: String, text: String) {
  * Android MediaCodec + MediaMuxer. This first version exports silent video;
  * narration audio muxing is the next milestone.
  */
-private fun renderVideoToGallery(context: Context, title: String, script: String) {
+private fun renderVideoToGallery(context: Context, title: String, script: String, topic: String, pixabayKey: String) {
     val width = 360
     val height = 640
     val fps = 15
     val durationSeconds = 45
     val frameCount = fps * durationSeconds
+    val backgroundFile = downloadPixabayBackground(context, topic, pixabayKey)
+    val retriever = MediaMetadataRetriever()
+    retriever.setDataSource(backgroundFile.absolutePath)
     val mime = "video/avc"
     val values = ContentValues().apply {
         put(MediaStore.Video.Media.DISPLAY_NAME, "VideoFactory_${System.currentTimeMillis()}.mp4")
@@ -248,7 +278,11 @@ private fun renderVideoToGallery(context: Context, title: String, script: String
                             codec!!.queueInputBuffer(inputIndex, 0, 0, frameIndex.toLong() * 1_000_000L / fps, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                             inputDone = true
                         } else {
-                            drawVideoFrame(canvas, paint, width, height, cleanTitle, script, frameIndex, frameCount)
+                            val backgroundFrame = try {
+                                retriever.getFrameAtTime(frameIndex.toLong() * 1_000_000L / fps, MediaMetadataRetriever.OPTION_CLOSEST)
+                            } catch (_: Exception) { null }
+                            drawVideoFrame(canvas, paint, width, height, cleanTitle, script, frameIndex, frameCount, backgroundFrame)
+                            backgroundFrame?.recycle()
                             val yuv = bitmapToNv12(bitmap)
                             input.clear()
                             input.put(yuv)
@@ -289,7 +323,55 @@ private fun renderVideoToGallery(context: Context, title: String, script: String
         try { if (muxerStarted) muxer?.stop() } catch (_: Exception) {}
         try { muxer?.release() } catch (_: Exception) {}
         try { outputDescriptor?.close() } catch (_: Exception) {}
+        try { retriever.release() } catch (_: Exception) {}
+        try { backgroundFile.delete() } catch (_: Exception) {}
     }
+}
+
+
+private fun downloadPixabayBackground(context: Context, topic: String, apiKey: String): File {
+    val query = URLEncoder.encode(topic.ifBlank { "nature cinematic" }, "UTF-8")
+    val encodedKey = URLEncoder.encode(apiKey.trim(), "UTF-8")
+    val apiUrl = URL("https://pixabay.com/api/videos/?key=" + encodedKey + "&q=" + query + "&video_type=film&per_page=10&safesearch=true")
+    val connection = (apiUrl.openConnection() as HttpURLConnection).apply {
+        connectTimeout = 15000
+        readTimeout = 20000
+        requestMethod = "GET"
+    }
+    val videoUrl = try {
+        val code = connection.responseCode
+        if (code !in 200..299) throw IllegalStateException("Pixabay API error (" + code + "). Suriin ang API key at internet.")
+        val response = connection.inputStream.bufferedReader().use { it.readText() }
+        val root = JSONObject(response)
+        val hits = root.optJSONArray("hits")
+        if (hits == null || hits.length() == 0) throw IllegalStateException("Walang nahanap na background video. Subukan ang mas maikling topic gaya ng space o ocean.")
+        val videos = hits.getJSONObject(0).getJSONObject("videos")
+        when {
+            videos.has("large") -> videos.getJSONObject("large").getString("url")
+            videos.has("medium") -> videos.getJSONObject("medium").getString("url")
+            else -> videos.getJSONObject("small").getString("url")
+        }
+    } finally {
+        connection.disconnect()
+    }
+    val output = File(context.cacheDir, "pixabay_background_" + System.currentTimeMillis() + ".mp4")
+    val download = (URL(videoUrl).openConnection() as HttpURLConnection).apply {
+        connectTimeout = 15000
+        readTimeout = 30000
+    }
+    try {
+        download.inputStream.use { input -> FileOutputStream(output).use { fileOut -> input.copyTo(fileOut) } }
+    } catch (e: Exception) {
+        output.delete()
+        throw IllegalStateException("Hindi ma-download ang background video mula sa Pixabay: " + (e.message ?: "network error"))
+    } finally {
+        download.disconnect()
+    }
+    if (!output.exists() || output.length() < 10000L) {
+        output.delete()
+        throw IllegalStateException("Hindi kumpleto ang background video download.")
+    }
+    return output
 }
 
 private fun drawVideoFrame(
@@ -300,27 +382,24 @@ private fun drawVideoFrame(
     title: String,
     script: String,
     frame: Int,
-    totalFrames: Int
+    totalFrames: Int,
+    backgroundFrame: Bitmap?
 ) {
     val phase = frame.toFloat() / totalFrames
-    val seconds = frame / 15f
-    val r = (10 + 8 * (0.5 + 0.5 * kotlin.math.sin(phase * 6.283)).toInt()).coerceIn(10, 18)
-    canvas.drawColor(AndroidColor.rgb(r, 13, 37))
-
-    // Moving starfield and glowing planet-like shapes create motion without static images.
-    for (i in 0 until 42) {
-        val x = ((i * 83f + seconds * (8 + i % 5) * (if (i % 2 == 0) 1f else -1f)) % width.toFloat() + width.toFloat()) % width.toFloat()
-        val y = ((i * 137) % height).toFloat()
-        paint.color = AndroidColor.argb(100 + (i % 5) * 30, 190, 220, 255)
-        paint.style = Paint.Style.FILL
-        canvas.drawCircle(x, y, 1.2f + (i % 3) * 0.6f, paint)
+    canvas.drawColor(AndroidColor.BLACK)
+    if (backgroundFrame != null) {
+        val scale = maxOf(width.toFloat() / backgroundFrame.width, height.toFloat() / backgroundFrame.height)
+        val drawWidth = backgroundFrame.width * scale
+        val drawHeight = backgroundFrame.height * scale
+        val left = (width - drawWidth) / 2f
+        val top = (height - drawHeight) / 2f
+        val srcPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        canvas.drawBitmap(backgroundFrame, null, android.graphics.RectF(left, top, left + drawWidth, top + drawHeight), srcPaint)
+        paint.color = AndroidColor.argb(65, 0, 0, 0)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
+    } else {
+        canvas.drawColor(AndroidColor.rgb(10, 13, 37))
     }
-    paint.color = AndroidColor.argb(65, 80, 100, 255)
-    canvas.drawCircle(width * (0.78f - 0.04f * kotlin.math.sin(phase * 6.283).toFloat()), height * 0.34f, 115f, paint)
-    paint.color = AndroidColor.argb(110, 55, 125, 245)
-    canvas.drawCircle(width * 0.78f, height * 0.34f, 72f, paint)
-    paint.color = AndroidColor.argb(90, 130, 210, 255)
-    canvas.drawCircle(width * 0.75f, height * 0.30f, 18f, paint)
 
     paint.color = AndroidColor.rgb(114, 242, 195)
     paint.textSize = 22f
