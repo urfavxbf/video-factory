@@ -124,19 +124,20 @@ PIXABAY_QUERIES = {
 }
 
 
-def fetch_pixabay_video(title: str) -> Path | None:
-    """Fetch one relevant Pixabay stock clip; fail safely to existing visual fallbacks."""
+def fetch_pixabay_videos(title: str, max_clips: int = 3) -> list[Path]:
+    """Fetch several distinct topic-matched Pixabay clips for visual variety."""
     api_key = os.getenv("PIXABAY_API_KEY", "").strip()
     query = PIXABAY_QUERIES.get(title)
     if not api_key or not query:
         print("Pixabay is not configured; using the animated background fallback.")
-        return None
+        return []
 
-    video_path = OUT / "pixabay" / "stock-background.mp4"
+    video_dir = OUT / "pixabay"
+    video_dir.mkdir(exist_ok=True)
     try:
         params = urllib.parse.urlencode({
             "key": api_key, "q": query, "video_type": "film",
-            "safesearch": "true", "per_page": 8, "order": "popular",
+            "safesearch": "true", "per_page": 20, "order": "popular",
         })
         request = urllib.request.Request(
             f"https://pixabay.com/api/videos/?{params}",
@@ -145,9 +146,6 @@ def fetch_pixabay_video(title: str) -> Path | None:
         with urllib.request.urlopen(request, timeout=20) as response:
             payload = json.loads(response.read().decode("utf-8"))
 
-        hits = payload.get("hits", [])
-        # Require a topic-specific tag; generic space footage should not be
-        # presented as Jupiter footage, for example.
         required_tag = {
             "BAKIT ASUL ANG LANGIT?": ("sky", "cloud"),
             "TUNOG SA KALAWAKAN": ("astronaut", "space"),
@@ -161,46 +159,102 @@ def fetch_pixabay_video(title: str) -> Path | None:
             "HALOS WALANG TUNOG ANG BUWAN": ("moon", "lunar"),
         }.get(title, ())
         ranked = []
-        for hit in hits:
+        seen_ids = set()
+        for hit in payload.get("hits", []):
             tags = {tag.strip().lower() for tag in hit.get("tags", "").split(",")}
             relevance = sum(tag in tags for tag in required_tag)
             variants = hit.get("videos", {})
             candidate = variants.get("medium") or variants.get("small") or variants.get("large")
-            if candidate and candidate.get("url") and relevance:
-                ranked.append((relevance, candidate))
+            video_id = hit.get("id")
+            if candidate and candidate.get("url") and relevance and video_id not in seen_ids:
+                ranked.append((relevance, video_id, candidate))
+                seen_ids.add(video_id)
         ranked.sort(key=lambda item: item[0], reverse=True)
-        chosen = ranked[0][1] if ranked else None
+        chosen = ranked[:max_clips]
         if not chosen:
             print(f"Pixabay had no clearly topic-matched clip for '{query}'.")
             print("Using the animated background rather than unrelated stock footage.")
-            return None
+            return []
 
-        video_path.parent.mkdir(exist_ok=True)
-        download_request = urllib.request.Request(
-            chosen["url"], headers={"User-Agent": "video-factory/1.0"}
-        )
-        total = 0
-        max_bytes = 80 * 1024 * 1024
-        with urllib.request.urlopen(download_request, timeout=30) as response:
-            with video_path.open("wb") as output:
-                while True:
-                    chunk = response.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    total += len(chunk)
-                    if total > max_bytes:
-                        raise RuntimeError("Pixabay clip exceeded the 80 MB safety limit.")
-                    output.write(chunk)
-        if total == 0:
-            raise RuntimeError("Pixabay returned an empty video file.")
-        print(f"Downloaded Pixabay stock video ({total // (1024 * 1024)} MB).")
-        return video_path
+        downloaded: list[Path] = []
+        for index, (_, video_id, candidate) in enumerate(chosen, start=1):
+            video_path = video_dir / f"stock-background-{index}.mp4"
+            total = 0
+            max_bytes = 80 * 1024 * 1024
+            download_request = urllib.request.Request(
+                candidate["url"], headers={"User-Agent": "video-factory/1.0"}
+            )
+            try:
+                with urllib.request.urlopen(download_request, timeout=30) as response:
+                    with video_path.open("wb") as output:
+                        while True:
+                            chunk = response.read(1024 * 1024)
+                            if not chunk:
+                                break
+                            total += len(chunk)
+                            if total > max_bytes:
+                                raise RuntimeError("Pixabay clip exceeded the 80 MB safety limit.")
+                            output.write(chunk)
+                if total == 0:
+                    raise RuntimeError("Pixabay returned an empty video file.")
+                downloaded.append(video_path)
+                print(f"Downloaded topic-matched Pixabay clip {index} ({total // (1024 * 1024)} MB; id {video_id}).")
+            except Exception as exc:
+                print(f"Skipping Pixabay clip {index} ({type(exc).__name__}: {exc}).")
+                video_path.unlink(missing_ok=True)
+
+        if not downloaded:
+            print("No usable Pixabay clips downloaded; using animated background.")
+        return downloaded
     except Exception as exc:
         print(f"Pixabay video unavailable ({type(exc).__name__}: {exc}).")
         print("Falling back to the animated background.")
-        video_path.unlink(missing_ok=True)
-        return None
+        return []
 
+
+def render_pixabay_video(source_paths: list[Path], duration: float, video_path: Path,
+                         audio_path: Path, srt_path: Path, title: str) -> None:
+    """Sequence distinct moving clips vertically; preserve narration and captions."""
+    if not source_paths:
+        raise ValueError("At least one source video is required.")
+
+    clip_duration = duration / len(source_paths)
+    inputs = []
+    filters = []
+    concat_inputs = []
+    for index, source_path in enumerate(source_paths):
+        inputs.extend(["-stream_loop", "-1", "-i", str(source_path)])
+        filters.append(
+            f"[{index}:v]scale=720:1280:force_original_aspect_ratio=increase,"
+            f"crop=720:1280,fps=30,setsar=1,trim=duration={clip_duration:.3f},"
+            f"setpts=PTS-STARTPTS[v{index}]"
+        )
+        concat_inputs.append(f"[v{index}]")
+    filters.append(
+        "".join(concat_inputs) +
+        f"concat=n={len(source_paths)}:v=1:a=0[joined]"
+    )
+    filter_complex = ";".join(filters)
+
+    video_filter = (
+        "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
+        "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
+        f"drawtext=text='{title}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
+        "borderw=3:bordercolor=black@0.85:x=(w-text_w)/2:y=96,"
+        f"subtitles='{srt_path.as_posix()}':force_style="
+        "'FontName=DejaVu Sans,FontSize=13,Bold=1,PrimaryColour=&H00FFFFFF,"
+        "OutlineColour=&H00101010,BorderStyle=1,BackColour=&H00000000,"
+        "Outline=1,Shadow=0,Alignment=2,MarginL=90,MarginR=90,MarginV=105'"
+    )
+    run([
+        "ffmpeg", "-y", *inputs, "-i", str(audio_path),
+        "-filter_complex", filter_complex,
+        "-map", "[joined]", "-map", f"{len(source_paths)}:a:0",
+        "-vf", video_filter,
+        "-t", f"{duration:.3f}", "-c:v", "libx264", "-preset", "veryfast",
+        "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
+        "-shortest", "-movflags", "+faststart", str(video_path),
+    ])
 
 def render_pixabay_video(source_path: Path, duration: float, video_path: Path,
                          audio_path: Path, srt_path: Path, title: str) -> None:
@@ -269,11 +323,11 @@ def main() -> None:
     write_srt(narration, duration, srt_path)
 
     # Use moving Pixabay footage when available; never use still images as backgrounds.
-    pixabay_video = fetch_pixabay_video(fact["title"])
-    if pixabay_video:
-        print("Rendering Pixabay stock video with expanded narration and captions...")
-        render_pixabay_video(pixabay_video, duration, video_path, audio_path, srt_path, fact["title"])
-        visual_style = "Pixabay stock footage cropped to vertical 9:16"
+    pixabay_videos = fetch_pixabay_videos(fact["title"], max_clips=3)
+    if pixabay_videos:
+        print(f"Rendering {len(pixabay_videos)} distinct Pixabay clips with expanded narration and captions...")
+        render_pixabay_video(pixabay_videos, duration, video_path, audio_path, srt_path, fact["title"])
+        visual_style = f"{len(pixabay_videos)} topic-matched Pixabay clips, sequenced vertically in 9:16"
     else:
         # Free fallback: animated color shapes, not a still-image background.
         subtitle_filter = (
