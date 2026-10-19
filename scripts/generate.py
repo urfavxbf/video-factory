@@ -54,6 +54,10 @@ FACTS = [
         "text": "Ang Jupiter ang pinakamalaking planeta sa Solar System. Mahigit isang libong Earth ang maaaring magkasya rito ayon sa volume. Isa itong gas giant na pangunahing binubuo ng hydrogen at helium, kaya wala itong matigas na ibabaw na puwedeng tayuan. Kilala ito sa malalakas na bagyo, kabilang ang Great Red Spot na namataan sa loob ng maraming siglo. Napakalakas din ng magnetic field nito at marami itong buwan. Ang Europa, isa sa mga buwan nito, ay pinag-aaralan dahil maaaring may karagatan sa ilalim ng yelo. Kahit napakalaki ng Jupiter, ang isang araw doon ay humigit-kumulang sampung oras lamang."
     },
     {
+        "title": "BAKIT PARANG NARANASAN NA NATIN ITO?",
+        "text": "Naranasan mo na bang pumasok sa isang lugar o makipag-usap sa isang tao, tapos biglang pakiramdam mo ay nangyari na ito dati? Ang tawag dito ay déjà vu. Hindi pa lubos na nauunawaan ng mga siyentipiko ang eksaktong dahilan, pero isang paliwanag ay maaaring magkaroon ng saglit na hindi pagtutugma sa paraan ng pagproseso ng utak sa kasalukuyang karanasan at pamilyar na alaala. Dahil dito, parang may naaalala ka kahit hindi mo matukoy kung kailan ito nangyari. Mas karaniwan itong maranasan ng mga kabataan at madalas ay panandalian lamang. Hindi ito patunay na nakikita natin ang hinaharap. Isa itong kakaibang pakiramdam na nagpapakita kung gaano kakomplikado ang memorya ng tao."
+    },
+    {
         "title": "HALOS WALANG TUNOG ANG BUWAN",
         "text": "Halos walang atmospera ang Buwan, kaya hindi kumakalat doon ang ordinaryong tunog tulad sa Earth. Kailangan ng tunog ng materyal gaya ng hangin o tubig para maipasa ang vibration. Kaya hindi maririnig ng dalawang astronaut na magkalayo ang boses ng isa't isa sa pamamagitan ng hangin. Gumagamit sila ng radyo sa helmet at spacesuit para makapagsalita at makarinig. Maaari pa ring dumaan ang vibration sa solidong materyal kapag direktang magkadikit ang mga bagay, pero iba iyon sa tunog sa hangin. Kaya tahimik ang ibabaw ng Buwan sa tainga ng tao kahit gumagalaw ang mga rover."
     },
@@ -121,6 +125,7 @@ PIXABAY_QUERIES = {
     "MAY AMOY ANG KALAWAKAN?": "astronaut spacewalk",
     "ANG HIGANTENG JUPITER": "Jupiter planet space",
     "HALOS WALANG TUNOG ANG BUWAN": "astronaut moon",
+    "BAKIT PARANG NARANASAN NA NATIN ITO?": "human brain memory thinking person",
 }
 
 
@@ -268,7 +273,8 @@ def render_pixabay_video(source_paths: list[Path], duration: float, video_path: 
 
 def main() -> None:
     # The workflow sets TZ=Asia/Manila; daily rotation is stable for reruns.
-    fact = FACTS[date.today().toordinal() % len(FACTS)]
+    # Run the déjà vu episode first for this test; daily rotation resumes afterward.
+    fact = next((item for item in FACTS if item["title"] == "BAKIT PARANG NARANASAN NA NATIN ITO?"), FACTS[date.today().toordinal() % len(FACTS)])
     narration = fact["text"]
 
     audio_path = OUT / "narration.mp3"
