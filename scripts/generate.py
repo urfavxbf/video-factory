@@ -213,7 +213,26 @@ def main() -> None:
 
     print(f"Selected fact: {fact['title']}")
     print("Generating Filipino narration...")
-    gTTS(text=narration, lang="tl", slow=False).save(str(audio_path))
+    raw_audio_path = OUT / "narration-raw.mp3"
+    gTTS(text=narration, lang="tl", slow=False).save(str(raw_audio_path))
+
+    # Slightly lower pitch and add body, compression, and consistent loudness.
+    sample_rate = int(run([
+        "ffprobe", "-v", "error", "-select_streams", "a:0",
+        "-show_entries", "stream=sample_rate",
+        "-of", "default=noprint_wrappers=1:nokey=1", str(raw_audio_path),
+    ]))
+    pitch_rate = max(8000, int(sample_rate * 0.90))
+    audio_filter = (
+        f"asetrate={pitch_rate},aresample={sample_rate},atempo={sample_rate / pitch_rate},"
+        "highpass=f=75,equalizer=f=150:t=q:w=1:g=2.5,"
+        "equalizer=f=2800:t=q:w=1:g=1.2,"
+        "acompressor=threshold=0.125:ratio=3:attack=20:release=200,"
+        "loudnorm=I=-16:TP=-1.5:LRA=11"
+    )
+    run(["ffmpeg", "-y", "-i", str(raw_audio_path), "-af", audio_filter,
+         "-codec:a", "libmp3lame", "-b:a", "128k", str(audio_path)])
+    raw_audio_path.unlink(missing_ok=True)
 
     duration_text = run([
         "ffprobe", "-v", "error",
@@ -233,8 +252,9 @@ def main() -> None:
     else:
         # Free fallback: animated color shapes, not a still-image background.
         subtitle_filter = (
-            "drawbox=x='mod(t*42\\,900)-180':y=0:w=220:h=1280:color=0x2563EB@0.16:t=fill,"
-            "drawbox=x=720-mod(t*27\\,1000):y=0:w=160:h=1280:color=0x7C3AED@0.12:t=fill,"
+            "drawbox=x='mod(t*42\\,900)-180':y=150:w=260:h=430:color=0x2563EB@0.42:t=fill,"
+            "drawbox=x=720-mod(t*27\\,1000):y=620:w=220:h=500:color=0x7C3AED@0.38:t=fill,"
+            "drawbox=x='mod(t*18\\,1000)-250':y=980:w=320:h=180:color=0x06B6D4@0.32:t=fill,"
             "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
             "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
             f"drawtext=text='{fact['title']}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
