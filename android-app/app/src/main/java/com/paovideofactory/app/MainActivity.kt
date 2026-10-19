@@ -213,12 +213,13 @@ private fun renderVideoToGallery(context: Context, title: String) {
         ?: throw IllegalStateException("Hindi makagawa ng output file.")
     var codec: MediaCodec? = null
     var muxer: MediaMuxer? = null
+    var outputDescriptor: android.os.ParcelFileDescriptor? = null
     var muxerStarted = false
     var trackIndex = -1
     try {
-        val pfd = resolver.openFileDescriptor(uri, "rw")
+        outputDescriptor = resolver.openFileDescriptor(uri, "rw")
             ?: throw IllegalStateException("Hindi mabuksan ang output file.")
-        pfd.use { descriptor ->
+        run {
             codec = MediaCodec.createEncoderByType(mime)
             val format = MediaFormat.createVideoFormat(mime, width, height).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar)
@@ -228,7 +229,7 @@ private fun renderVideoToGallery(context: Context, title: String) {
             }
             codec!!.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             codec!!.start()
-            muxer = MediaMuxer(descriptor.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+            muxer = MediaMuxer(outputDescriptor!!.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
             val info = MediaCodec.BufferInfo()
             var frameIndex = 0
             var inputDone = false
@@ -287,6 +288,7 @@ private fun renderVideoToGallery(context: Context, title: String) {
         try { codec?.release() } catch (_: Exception) {}
         try { if (muxerStarted) muxer?.stop() } catch (_: Exception) {}
         try { muxer?.release() } catch (_: Exception) {}
+        try { outputDescriptor?.close() } catch (_: Exception) {}
     }
 }
 
