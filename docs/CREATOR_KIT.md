@@ -1,11 +1,12 @@
 # Filipino Creator Kit — CapCut + ElevenLabs
 
-This feature is an **editorial assistant**, not an automatic uploader or finished-video renderer. A creator supplies a topic. Cloudflare Workers AI drafts original Filipino narration, title, caption, hashtags and three scene-specific visual searches. The Android app searches **real Pixabay images/videos**, provides contributor/source links and saves files through Android's native Save dialog for manual CapCut editing.
+This feature is an **editorial assistant**, not an automatic uploader or finished-video renderer. A creator supplies a topic. Cloudflare Workers AI drafts original Filipino narration, title, caption, hashtags and three scene-specific visual searches. On request, it also creates a seven-scene Google Flow storyboard with selectable visual styles. The Android app searches **real Pixabay images/videos**, provides contributor/source links and saves files through Android's native Save dialog for manual CapCut editing.
 
 ## What is generated?
 
 - AI drafts: original script, hook, title, caption, hashtags, three scene-specific English stock-search phrases.
 - Stock media: Pixabay images and videos (not AI-generated art).
+- Google Flow storyboard: seven distinct, approximately eight-second vertical 9:16 video generation prompts, with a shared subject reference, sequential voice-over beats, and a per-episode style choice: **2D Animated, 3D Animation, Japanese Anime, Realistic, or Cinematic**. Each prompt includes the selected visual style and can be copied independently; the complete storyboard can be copied or saved to `.txt`. This feature generates *instructions for Google Flow*, not finished video or a claim that clips were generated.
 - Background-music suggestions: three episode-specific moods with verified Mixkit category links and official YouTube Audio Library access. Music is selected and downloaded from the external provider, not downloaded directly inside the app; no new API credential is required.
 - Creator: verify all factual claims, use ElevenLabs for narration, download and edit media in CapCut, and publish manually after license/relevance review.
 - No template-based fallback, unsupported claims of verification, or automatic publication.
@@ -36,9 +37,11 @@ If **Deploy Content Kit Worker** says `No access to the specified resource`, sec
 5. Open Source / license for the individual contributor page. Tap Save image/video; choose a phone folder.
 6. In **Background Music for CapCut**, review the recommended mood and two alternative moods. Open Mixkit's mood-specific library (or YouTube Studio Audio Library), preview tracks, and download a suitable MP3 **on the official music site**. Read the track's applicable license before using it; attribution may be required for tracks in the YouTube Audio Library.
 7. Import downloaded footage, ElevenLabs narration, and your selected music file into CapCut. Keep background music low enough not to drown out the voice-over; edit pacing, graphics, transitions, narration and subtitles.
-8. Export from CapCut and publish manually, only after checking rights and any required synthetic-media disclosure.
+8. For AI-generated clips, open **05 / Google Flow Video Storyboard**, choose 2D Animated, 3D Animation, Japanese Anime, Realistic, or Cinematic, then tap **Generate Google Flow prompts**. Copy an individual scene prompt into Google Flow, generate clips separately, and repeat using the same reference character. You can copy all seven prompts or export the storyboard `.txt`. Changing the style discards the previous storyboard until regeneration. The style selection is for *video prompts*, not voice-over.
+9. Check timing against the real ElevenLabs narration. Seven 8-second clips are a rough storyboard estimate, not guaranteed video duration or word alignment.
+10. Export from CapCut and publish manually, only after checking rights and any required synthetic-media disclosure.
 
-You can also save the full text kit as a .txt file. Music mood recommendations, official category links, and licensing information are included. The app keeps up to 15 recent title strings locally to reduce exact repeats; it does not yet provide independent source research or a complete editing history. AI output should never be presented as automatically verified.
+You can also save the full text kit as a .txt file. Google Flow storyboards have a separate `.txt` export and an explicit manual generation step so no extra Workers AI calls are made for users who only want stock footage. Music mood recommendations, official category links, and licensing information are included. The app keeps up to 15 recent title strings locally to reduce exact repeats; it does not yet provide independent source research or a complete editing history. AI output should never be presented as automatically verified.
 
 ## Automated checks
 
@@ -52,6 +55,7 @@ You can also save the full text kit as a .txt file. Music mood recommendations, 
 - YouTube Audio Library: https://www.youtube.com/audiolibrary — music downloads through YouTube Studio; filter on attribution and add artist credits if required. https://support.google.com/youtube/answer/3376882
 - Pixabay API: https://pixabay.com/api/docs/ — contributor/source attribution, cache search results 24 hours, no systematic bulk downloads. Check individual Content License.
 - YouTube channel monetization policy: https://support.google.com/youtube/answer/1311392 — repetitive or mass-produced content risks monetization; substantial original creative work matters.
+- Google Flow: https://labs.google/fx/tools/flow — check Flow availability, generation quotas, copyright, safety requirements and export restrictions in your region. Prompts are not video clips.
 - YouTube synthetic disclosure: https://support.google.com/youtube/answer/14328491
 - ElevenLabs: https://elevenlabs.io/docs/overview/capabilities/text-to-speech — check your chosen plan's commercial-use rights.
 
