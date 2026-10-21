@@ -21,6 +21,11 @@ The Worker must be deployed by the owner to their Cloudflare account. Repo CI ca
 
 Keep all credentials out of GitHub files and chat. Check Workers AI/Pixabay quotas and terms; usage is not guaranteed to be free.
 
+### GitHub deployment permission troubleshooting
+
+If **Deploy Content Kit Worker** says `No access to the specified resource`, secrets are present but that does not prove the Cloudflare token is authorized. In Cloudflare, verify the `CLOUDFLARE_API_TOKEN` has a **Workers Editor / Workers Scripts Edit (Write)** permission for the same Cloudflare account as `CLOUDFLARE_ACCOUNT_ID`. For a first-time Worker creation, broader Workers-product Admin permission may be required if the scoped token only permits editing existing Workers. Update the GitHub secret if you rotate/regenerate a token. Do not share the token value in issues or chat. The workflow now uploads code and Worker secrets together using Wrangler `deploy --secrets-file` to avoid pre-deployment secret-upload failures.
+
+
 ## Mobile workflow
 
 1. Enter your topic and optional audience/editorial angle. Tap Generate original content kit.
