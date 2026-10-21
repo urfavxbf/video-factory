@@ -18,7 +18,7 @@ from content_engine import (  # noqa: E402
 
 SEED = {
     "title": "BAKIT ASUL ANG LANGIT?",
-    "text": "Asul ang langit dahil mas naikalat ang blue light sa atmospera.",
+    "text": " ".join(["Mas madaling kumalat sa atmospera ang asul na liwanag ng araw kaya asul ang langit."] * 7),
 }
 
 
@@ -124,6 +124,24 @@ class ContentEngineTests(unittest.TestCase):
         self.assertTrue(output["ai_generated"])
         sent = json.loads(urlopen.call_args.args[0].data)
         self.assertEqual(sent["response_format"]["type"], "json_object")
+
+    def test_out_of_budget_narration_keeps_ai_metadata_and_curated_audio(self):
+        payload = sample_payload()
+        payload["narration"] = "Maikli lang ito."
+        model_response = {"success": True, "result": {"response": payload}}
+        with patch.dict(
+            os.environ,
+            {"CLOUDFLARE_ACCOUNT_ID": "a" * 32, "CLOUDFLARE_API_TOKEN": "test"},
+            clear=True,
+        ), patch(
+            "content_engine.urllib.request.urlopen",
+            return_value=io.BytesIO(json.dumps(model_response).encode()),
+        ):
+            output = build_content_pack(SEED)
+        self.assertTrue(output["ai_generated"])
+        self.assertEqual(output["narration_source"], "curated_seed")
+        self.assertEqual(output["narration"], SEED["text"])
+        self.assertEqual(len(output["hooks"]), 5)
 
     def test_bad_ai_response_falls_back(self):
         with patch.dict(
