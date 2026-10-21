@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8"
+MODEL = "@cf/meta/llama-3.1-8b-instruct"
 _HASHTAG = re.compile(r"^#[A-Za-z0-9_]{2,40}$")
 _SAFE_TITLE = re.compile(r"[^\w\s.!?\-]", re.UNICODE)
 
@@ -136,8 +136,9 @@ def request_cloudflare_pack(
                 f"VERIFIED EDITORIAL SEED (do not add facts):\n{seed['text']}"
             )},
         ],
-        "max_tokens": 1500,
-        "temperature": 0.55,
+        "max_tokens": 1800,
+        "temperature": 0.45,
+        "response_format": {"type": "json_object"},
         "stream": False,
     }).encode("utf-8")
     url = (
@@ -159,9 +160,16 @@ def request_cloudflare_pack(
     if result.get("success") is not True:
         raise ValueError("Cloudflare AI request was unsuccessful")
     output = result.get("result")
-    if not isinstance(output, dict) or not isinstance(output.get("response"), str):
-        raise ValueError("Cloudflare AI returned no text response")
-    return validate_pack(parse_model_json(output["response"]))
+    if not isinstance(output, dict):
+        raise ValueError("Cloudflare AI returned no result object")
+    response_value = output.get("response")
+    if isinstance(response_value, dict):
+        parsed = response_value  # JSON Mode may return a parsed object directly.
+    elif isinstance(response_value, str):
+        parsed = parse_model_json(response_value)
+    else:
+        raise ValueError("Cloudflare AI returned no JSON response")
+    return validate_pack(parsed)
 
 
 def build_content_pack(seed: dict[str, str]) -> dict[str, Any]:
@@ -179,7 +187,11 @@ def build_content_pack(seed: dict[str, str]) -> dict[str, Any]:
         pack = request_cloudflare_pack(seed, account_id, api_token)
         print("AI content pack generated. Editorial fact review required.")
         return pack
-    except (urllib.error.URLError, TimeoutError, ValueError, KeyError, OSError) as exc:
-        # Deliberately avoid printing provider error bodies or credentials.
-        print(f"AI content unavailable ({type(exc).__name__}); using curated script.")
+    except ValueError as exc:
+        # These validation errors are authored locally; never log the model reply.
+        print(f"AI response rejected: {str(exc)[:120]}; using curated script.")
+        return fallback_pack(seed)
+    except (urllib.error.URLError, TimeoutError, KeyError, OSError) as exc:
+        # Avoid printing HTTP error bodies, request URLs, or API tokens.
+        print(f"AI service unavailable ({type(exc).__name__}); using curated script.")
         return fallback_pack(seed)

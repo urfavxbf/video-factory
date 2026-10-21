@@ -104,6 +104,27 @@ class ContentEngineTests(unittest.TestCase):
         self.assertIn("private-test-token", request.get_header("Authorization"))
         self.assertNotIn("private-test-token", json.dumps(output))
 
+    def test_json_mode_accepts_object_response(self):
+        model_response = {
+            "success": True,
+            "result": {"response": sample_payload()},
+        }
+        with patch.dict(
+            os.environ,
+            {
+                "CLOUDFLARE_ACCOUNT_ID": "a" * 32,
+                "CLOUDFLARE_API_TOKEN": "test-token",
+            },
+            clear=True,
+        ), patch(
+            "content_engine.urllib.request.urlopen",
+            return_value=io.BytesIO(json.dumps(model_response).encode()),
+        ) as urlopen:
+            output = build_content_pack(SEED)
+        self.assertTrue(output["ai_generated"])
+        sent = json.loads(urlopen.call_args.args[0].data)
+        self.assertEqual(sent["response_format"]["type"], "json_object")
+
     def test_bad_ai_response_falls_back(self):
         with patch.dict(
             os.environ,
