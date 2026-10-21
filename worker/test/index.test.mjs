@@ -96,3 +96,16 @@ test("Pixabay search is attributed and rejects invalid query", async () => {
     assert.match(result.attribution,/Pixabay/);
   } finally { globalThis.fetch = previous; }
 });
+
+test("owner search still returns media if edge cache backend is unavailable", async () => {
+  const previous = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({hits:[]}), {status:200});
+  const brokenCache = {
+    match: async () => { throw new Error("Cache disabled"); },
+    put: async () => { throw new Error("Cache disabled"); },
+  };
+  try {
+    const result = await assetSearch({PIXABAY_API_KEY:"example"}, "moon surface", "videos", brokenCache);
+    assert.equal(result.results.length, 0);
+  } finally { globalThis.fetch = previous; }
+});
