@@ -9,12 +9,17 @@ on:
       - "settings.gradle"
       - ".github/workflows/build-android.yml"
   push:
+    branches: [main]
     paths:
       - "app/**"
       - "build.gradle"
       - "settings.gradle"
       - "android-app/**"
       - ".github/workflows/build-android.yml"
+
+concurrency:
+  group: android-build-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
