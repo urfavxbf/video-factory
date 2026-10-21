@@ -34,6 +34,15 @@ data class ContentKit(
         appendLine("CAPCUT SHOT SEARCHES")
         visualQueries.forEachIndexed { index, query -> appendLine((index + 1).toString() + ". " + query) }
         appendLine()
+        appendLine("BACKGROUND MUSIC IDEAS — download from official music library")
+        MusicResources.suggestions(this@ContentKit).forEachIndexed { index, mood ->
+            appendLine((index + 1).toString() + ". " + mood.name + " — " + mood.mixkitUrl)
+            appendLine("   " + mood.editingTip)
+        }
+        appendLine("YouTube Audio Library: " + MusicResources.youtubeAudioLibraryUrl)
+        appendLine("Mixkit music license: " + MusicResources.mixkitLicenseUrl)
+        appendLine("Confirm each music track's license and any attribution before publishing.")
+        appendLine()
         appendLine("FACT REVIEW: " + sourceNote)
         appendLine("Media source: Pixabay — check each contributor page and Content License.")
     }

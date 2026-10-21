@@ -6,6 +6,7 @@ This feature is an **editorial assistant**, not an automatic uploader or finishe
 
 - AI drafts: original script, hook, title, caption, hashtags, three scene-specific English stock-search phrases.
 - Stock media: Pixabay images and videos (not AI-generated art).
+- Background-music suggestions: three episode-specific moods with verified Mixkit category links and official YouTube Audio Library access. Music is selected and downloaded from the external provider, not downloaded directly inside the app; no new API credential is required.
 - Creator: verify all factual claims, use ElevenLabs for narration, download and edit media in CapCut, and publish manually after license/relevance review.
 - No template-based fallback, unsupported claims of verification, or automatic publication.
 
@@ -33,10 +34,11 @@ If **Deploy Content Kit Worker** says `No access to the specified resource`, sec
 3. Tap Copy under ElevenLabs script; open ElevenLabs and choose a Filipino-capable voice.
 4. Pick a suggested scene and browse Videos or Pictures. Results are pulled from Pixabay, not invented.
 5. Open Source / license for the individual contributor page. Tap Save image/video; choose a phone folder.
-6. Import the downloaded footage and ElevenLabs audio into CapCut, and edit pacing, graphics, transitions, narration and subtitles.
-7. Export from CapCut and publish manually, only after checking rights and any required synthetic-media disclosure.
+6. In **Background Music for CapCut**, review the recommended mood and two alternative moods. Open Mixkit's mood-specific library (or YouTube Studio Audio Library), preview tracks, and download a suitable MP3 **on the official music site**. Read the track's applicable license before using it; attribution may be required for tracks in the YouTube Audio Library.
+7. Import downloaded footage, ElevenLabs narration, and your selected music file into CapCut. Keep background music low enough not to drown out the voice-over; edit pacing, graphics, transitions, narration and subtitles.
+8. Export from CapCut and publish manually, only after checking rights and any required synthetic-media disclosure.
 
-You can also save the full text kit as a .txt file. The app keeps up to 15 recent title strings locally to reduce exact repeats; it does not yet provide independent source research or a complete editing history. AI output should never be presented as automatically verified.
+You can also save the full text kit as a .txt file. Music mood recommendations, official category links, and licensing information are included. The app keeps up to 15 recent title strings locally to reduce exact repeats; it does not yet provide independent source research or a complete editing history. AI output should never be presented as automatically verified.
 
 ## Automated checks
 
@@ -46,6 +48,8 @@ You can also save the full text kit as a .txt file. The app keeps up to 15 recen
 
 ## Primary policies
 
+- Mixkit Free Stock Music: https://mixkit.co/free-stock-music/ — browse/download on Mixkit. License: https://mixkit.co/license/modal/musicFree/ — commercial YouTube use permitted under its terms, but no music redistribution by itself, Content ID registration, or claiming ownership. Check terms per track before publication.
+- YouTube Audio Library: https://www.youtube.com/audiolibrary — music downloads through YouTube Studio; filter on attribution and add artist credits if required. https://support.google.com/youtube/answer/3376882
 - Pixabay API: https://pixabay.com/api/docs/ — contributor/source attribution, cache search results 24 hours, no systematic bulk downloads. Check individual Content License.
 - YouTube channel monetization policy: https://support.google.com/youtube/answer/1311392 — repetitive or mass-produced content risks monetization; substantial original creative work matters.
 - YouTube synthetic disclosure: https://support.google.com/youtube/answer/14328491

@@ -292,6 +292,50 @@ private fun ContentStudio(settings: ConnectionSettings) {
                     style = MaterialTheme.typography.bodySmall, color = Color.LightGray
                 )
             }
+
+            Section("04  /  BACKGROUND MUSIC FOR CAPCUT") {
+                Text(
+                    "Pumili ng music mood na bagay sa episode. Browse at i-download ang MP3 " +
+                        "sa official Mixkit page, saka i-import sa CapCut.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                val musicChoices = remember(current) { MusicResources.suggestions(current) }
+                musicChoices.forEachIndexed { index, mood ->
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(
+                            (if (index == 0) "RECOMMENDED  •  " else "ALTERNATIVE  •  ") + mood.name,
+                            color = if (index == 0) Mint else Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(mood.description, style = MaterialTheme.typography.bodySmall)
+                        Text("Editing tip: " + mood.editingTip,
+                            style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { openExternal(context, mood.mixkitUrl) }
+                        ) { Text("Browse / download music on Mixkit") }
+                        HorizontalDivider(color = Color(0xFF36485F))
+                    }
+                }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { openExternal(context, MusicResources.youtubeAudioLibraryUrl) }
+                ) { Text("Open YouTube Audio Library") }
+                Text(
+                    "Sa YouTube Studio Audio Library, puwedeng pumili ng mood at mag-download ng MP3. " +
+                        "Kung Attribution required ang track, kopyahin ang credit para sa description.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                TextButton(onClick = { openExternal(context, MusicResources.mixkitLicenseUrl) }) {
+                    Text("Read Mixkit music license")
+                }
+                Text(
+                    "Hindi pa direct in-app audio download ito. Bawat track ay may sariling license; " +
+                        "i-check bago gamitin, at huwag i-register sa Content ID. " +
+                        "Hinaan ang background music para malinaw ang ElevenLabs narration.",
+                    style = MaterialTheme.typography.bodySmall, color = Color.LightGray
+                )
+            }
         }
 
         Spacer(Modifier.height(24.dp))
