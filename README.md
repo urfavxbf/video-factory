@@ -1,4 +1,22 @@
-# Video Factory — Filipino Fact Shorts
+# Video Factory — Filipino Creator Kit + Legacy Shorts
+
+## NEW: Android Creator Kit for CapCut and ElevenLabs
+
+The app built from the root **app/** module is a creator-assistance studio:
+
+- Type a Filipino video topic and optional creative angle.
+- A secure Cloudflare Worker returns an **AI-written, non-template** title, voice-over script, caption, hook and hashtags.
+- Three scene-search prompts let you browse **actual Pixabay photos and videos**, view their source/license, and save selected media files to your Android device.
+- Copy the script into ElevenLabs, then edit the downloaded media and resulting narration manually in CapCut.
+- No automatic YouTube uploading. Fact-check and review license terms before publication.
+
+[Full Creator Kit documentation and Cloudflare setup](docs/CREATOR_KIT.md)
+
+**Important:** Live app generation needs a deployed Cloudflare Worker. Configure Cloudflare/Pixabay credentials as repository secrets and use the manual **Deploy Content Kit Worker** GitHub Actions workflow. Keep a private APP_ACCESS_TOKEN secret and enter it once in Android; it is encrypted on-device. No production backend or cost-free quota is assumed.
+
+The older Python/GitHub Actions workflow described below remains available independently.
+
+## Legacy automated Shorts pipeline
 
 This repository generates one vertical MP4 Filipino science-fact video per scheduled GitHub Actions run, designed for reuse on TikTok and YouTube Shorts.
 
