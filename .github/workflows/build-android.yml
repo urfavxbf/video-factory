@@ -6,6 +6,7 @@ on:
     paths:
       - "app/**"
       - "build.gradle"
+      - "gradle.properties"
       - "settings.gradle"
       - ".github/workflows/build-android.yml"
   push:
@@ -13,6 +14,7 @@ on:
     paths:
       - "app/**"
       - "build.gradle"
+      - "gradle.properties"
       - "settings.gradle"
       - "android-app/**"
       - ".github/workflows/build-android.yml"
