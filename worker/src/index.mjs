@@ -88,7 +88,7 @@ export async function generatePack(env, data) {
     const result = await env.AI.run(MODEL, {
       messages: [
         {role:"system",content:system + " Your response must follow the JSON schema. Hashtags must be strings with #. Narration must be at least 85 spoken Filipino words, ideally 100-125. Caption must be descriptive (at least 30 characters). Avoid generic slogans and unverified explanations."},
-        {role:"user",content:JSON.stringify(data) + (feedback ? "\\nREWRITE PREVIOUS DRAFT: " + feedback + ". Keep the factual content careful, do not invent claims." : "")},
+        {role:"user",content:JSON.stringify(data) + (feedback ? "\nREWRITE PREVIOUS DRAFT: " + feedback + ". Keep the factual content careful, do not invent claims." : "")},
       ],
       response_format: {type:"json_schema",json_schema:{name:"content_kit",schema:CONTENT_SCHEMA,strict:true}},
       temperature:0.65,max_tokens:2200,
