@@ -1,0 +1,49 @@
+# Filipino Creator Kit — CapCut + ElevenLabs
+
+This feature is an **editorial assistant**, not an automatic uploader or finished-video renderer. A creator supplies a topic. Cloudflare Workers AI drafts original Filipino narration, title, caption, hashtags and three scene-specific visual searches. The Android app searches **real Pixabay images/videos**, provides contributor/source links and saves files through Android's native Save dialog for manual CapCut editing.
+
+## What is generated?
+
+- AI drafts: original script, hook, title, caption, hashtags, three scene-specific English stock-search phrases.
+- Stock media: Pixabay images and videos (not AI-generated art).
+- Creator: verify all factual claims, use ElevenLabs for narration, download and edit media in CapCut, and publish manually after license/relevance review.
+- No template-based fallback, unsupported claims of verification, or automatic publication.
+
+## Backend setup (required for live generation)
+
+The Worker must be deployed by the owner to their Cloudflare account. Repo CI cannot deploy a Worker without an account connection. The APK contains **no Cloudflare or Pixabay secrets**.
+
+1. Enable Workers AI on Cloudflare and install Node.js.
+2. From the worker directory run: npx wrangler login, then npx wrangler deploy.
+3. Set Worker secrets individually: npx wrangler secret put APP_ACCESS_TOKEN (owner-issued long random token, at least 12 characters) and npx wrangler secret put PIXABAY_API_KEY (Pixabay developer key).
+4. Check your deployed Worker's /health endpoint.
+5. In Android app → Private AI Connection, paste the HTTPS Worker URL and APP_ACCESS_TOKEN. Tap Save private connection. The access token is stored using Android Keystore encryption.
+
+Keep all credentials out of GitHub files and chat. Check Workers AI/Pixabay quotas and terms; usage is not guaranteed to be free.
+
+## Mobile workflow
+
+1. Enter your topic and optional audience/editorial angle. Tap Generate original content kit.
+2. Review the new title, hook, Filipino voice-over, caption and hashtags. Review important factual claims.
+3. Tap Copy under ElevenLabs script; open ElevenLabs and choose a Filipino-capable voice.
+4. Pick a suggested scene and browse Videos or Pictures. Results are pulled from Pixabay, not invented.
+5. Open Source / license for the individual contributor page. Tap Save image/video; choose a phone folder.
+6. Import the downloaded footage and ElevenLabs audio into CapCut, and edit pacing, graphics, transitions, narration and subtitles.
+7. Export from CapCut and publish manually, only after checking rights and any required synthetic-media disclosure.
+
+You can also save the full text kit as a .txt file. The app keeps up to 15 recent title strings locally to reduce exact repeats; it does not yet provide independent source research or a complete editing history. AI output should never be presented as automatically verified.
+
+## Automated checks
+
+- Worker: node --test worker/test/*.test.mjs
+- Android: build-android GitHub Actions job creates a debug APK and also runs on pull requests.
+- Source verification, real Worker credentials, upload rights and a real-media download must be reviewed separately.
+
+## Primary policies
+
+- Pixabay API: https://pixabay.com/api/docs/ — contributor/source attribution, cache search results 24 hours, no systematic bulk downloads. Check individual Content License.
+- YouTube channel monetization policy: https://support.google.com/youtube/answer/1311392 — repetitive or mass-produced content risks monetization; substantial original creative work matters.
+- YouTube synthetic disclosure: https://support.google.com/youtube/answer/14328491
+- ElevenLabs: https://elevenlabs.io/docs/overview/capabilities/text-to-speech — check your chosen plan's commercial-use rights.
+
+No claim of guaranteed channel monetization or earnings.

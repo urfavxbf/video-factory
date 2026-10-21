@@ -1,0 +1,9 @@
+{
+  "name": "video-factory-content-kit",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check src/index.mjs && npm test"
+  }
+}
