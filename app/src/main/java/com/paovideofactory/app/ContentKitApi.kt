@@ -9,6 +9,46 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
+data class FlowScene(
+    val title: String,
+    val voiceoverBeat: String,
+    val prompt: String
+)
+
+data class FlowStoryboard(
+    val style: String,
+    val mainSubjectReference: String,
+    val scenes: List<FlowScene>,
+    val clipDurationSeconds: Int,
+    val aspectRatio: String
+) {
+    fun textExport(kit: ContentKit): String = buildString {
+        appendLine("VIDEO FACTORY — GOOGLE FLOW STORYBOARD")
+        appendLine("Prompts only: Google Flow generates video clips separately.")
+        appendLine("Check AI video usage rules and video claims before publishing.")
+        appendLine()
+        appendLine("VIDEO TITLE: " + kit.title)
+        appendLine("STYLE: " + style)
+        appendLine("ASPECT RATIO: " + aspectRatio)
+        appendLine("TARGET DURATION PER CLIP: " + clipDurationSeconds + " seconds")
+        appendLine("CHARACTER / SUBJECT REFERENCE: " + mainSubjectReference)
+        appendLine()
+        appendLine("ELEVENLABS NARRATION SCRIPT")
+        appendLine(kit.script)
+        appendLine()
+        scenes.forEachIndexed { index, scene ->
+            appendLine("SCENE " + (index + 1) + " — " + scene.title)
+            appendLine("VOICE OVER BEAT: " + scene.voiceoverBeat)
+            appendLine("GOOGLE FLOW PROMPT:")
+            appendLine(scene.prompt)
+            appendLine()
+        }
+        appendLine("Google Flow: https://labs.google/fx/tools/flow")
+        appendLine("Import generated clips, ElevenLabs voice and licensed music in CapCut.")
+        appendLine("Review visual continuity and adjust scene timing to match actual voice-over.")
+    }
+}
+
 data class ContentKit(
     val title: String,
     val script: String,
@@ -82,6 +122,35 @@ class ContentKitApi(endpoint: String, private val accessToken: String) {
             hashtags = (0 until tagsArray.length()).map { tagsArray.getString(it) },
             visualQueries = (0 until queryArray.length()).map { queryArray.getString(it) },
             sourceNote = json.optString("sourceNote")
+        )
+    }
+
+    fun generateStoryboard(kit: ContentKit, style: String): FlowStoryboard {
+        require(style in setOf("animated", "3d", "anime", "realistic", "cinematic")) {
+            "Pumili ng valid Google Flow video style."
+        }
+        val request = JSONObject().apply {
+            put("title", kit.title)
+            put("hook", kit.hook)
+            put("script", kit.script)
+            put("style", style)
+        }
+        val json = httpJson("$baseUrl/v1/storyboard", "POST", request.toString())
+        val rows = json.getJSONArray("scenes")
+        require(rows.length() == 7) { "Hindi kumpleto ang 7 Google Flow scenes." }
+        return FlowStoryboard(
+            style = json.getString("style"),
+            mainSubjectReference = json.getString("mainSubjectReference"),
+            scenes = (0 until rows.length()).map { index ->
+                val item = rows.getJSONObject(index)
+                FlowScene(
+                    title = item.getString("title"),
+                    voiceoverBeat = item.getString("voiceoverBeat"),
+                    prompt = item.getString("prompt")
+                )
+            },
+            clipDurationSeconds = json.optInt("clipDurationSeconds", 8),
+            aspectRatio = json.optString("aspectRatio", "9:16")
         )
     }
 
