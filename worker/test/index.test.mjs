@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import worker, {
   authorized, normalizeRequest, validateContentPack,
-  parseAIResponse, cleanAssetResults, assetSearch
+  parseAIResponse, cleanAssetResults, assetSearch, normalizeStoryboardRequest, validateStoryboard
 } from "../src/index.mjs";
 
 const base = () => ({
@@ -138,4 +138,69 @@ test("invalid drafts fail with useful safe public message after two attempts", a
   assert.equal(tries,2);
   assert.equal(res.status,422);
   assert.equal((await res.json()).code,"CONTENT_VALIDATION_FAILED");
+});
+
+const flowDraft = () => ({
+  mainSubjectReference:"A Filipino college student, 23 years old, short black hair, cream shirt, blue jeans and brown backpack.",
+  scenes: Array.from({length:7},(_,i)=>({
+    title:"Scene " + (i+1) + " — cinematic campus moment",
+    voiceoverBeat:"Ang spotlight effect sa pang araw araw na buhay at kahihiyan.",
+    prompt: "Cinematic vertical video in a realistic university hallway in the Philippines. A young Filipino male student with short black hair, a cream shirt, dark blue jeans and a brown backpack " +
+      "walks slowly among other students. The camera follows the nervous subject in a believable live action scene. This is beat " + (i+1) + " of the narrative. Warm window lighting and subtle facial expressions. No dialogue, onscreen text or music.",
+  }))
+});
+
+test("flow storyboard request is bounded to current episode content", () => {
+  const data=base();
+  const parsed=normalizeStoryboardRequest(data);
+  assert.equal(parsed.title,data.title);
+  assert.equal(parsed.script,data.script);
+  assert.throws(()=>normalizeStoryboardRequest({title:"abc",script:"x",hook:"foo"}),/title/);
+  assert.throws(()=>normalizeStoryboardRequest({title:data.title,script:"Too short",hook:data.hook}),/script/);
+});
+
+test("flow storyboard enforces exactly seven standalone cinematic prompts", () => {
+  const valid=validateStoryboard(flowDraft());
+  assert.equal(valid.scenes.length,7);
+  assert.equal(valid.clipDurationSeconds,8);
+  assert.equal(valid.aspectRatio,"9:16");
+  assert.equal(valid.generatedVideo,false);
+  assert.throws(()=>validateStoryboard({...flowDraft(),scenes:flowDraft().scenes.slice(0,6)}),/seven/);
+  assert.throws(()=>validateStoryboard({...flowDraft(),scenes:flowDraft().scenes.map(s=>({...s,prompt:"Short"}))}),/prompt/);
+});
+
+test("authenticated flow endpoint returns storyboard without making videos",async()=>{
+  const data=base();
+  let calls=0;
+  const env={APP_ACCESS_TOKEN:"secret",AI:{run:async (_model,opts)=>{
+    calls++;
+    assert.equal(opts.response_format.type,"json_schema");
+    assert.ok(opts.response_format.json_schema.schema.properties.scenes);
+    assert.match(opts.messages[0].content,/Google Flow/);
+    return {response:flowDraft()};
+  }}};
+  const request=new Request("https://test.local/v1/storyboard",{
+    method:"POST",headers:{"authorization":"Bearer secret"},
+    body:JSON.stringify({title:data.title,hook:data.hook,script:data.script}),
+  });
+  const response=await worker.fetch(request,env);
+  assert.equal(response.status,200);
+  const result=await response.json();
+  assert.equal(result.scenes.length,7);
+  assert.equal(calls,1);
+});
+
+test("invalid Google Flow scene output retries then returns a safe error",async()=>{
+  const data=base();let calls=0;
+  const env={APP_ACCESS_TOKEN:"secret",AI:{run:async()=>{
+    calls++;
+    return {response:{...flowDraft(),scenes:[flowDraft().scenes[0]]}};
+  }}};
+  const request=new Request("https://test.local/v1/storyboard",{
+    method:"POST",headers:{"authorization":"Bearer secret"},body:JSON.stringify(data),
+  });
+  const response=await worker.fetch(request,env);
+  assert.equal(response.status,422);
+  assert.equal((await response.json()).code,"STORYBOARD_VALIDATION_FAILED");
+  assert.equal(calls,2);
 });
