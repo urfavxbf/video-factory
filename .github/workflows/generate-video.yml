@@ -57,5 +57,6 @@ jobs:
             output/narration.mp3
             output/captions.srt
             output/metadata.json
+            output/content-pack.json
           if-no-files-found: error
           retention-days: 7
