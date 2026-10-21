@@ -11,6 +11,7 @@ from datetime import date
 from pathlib import Path
 
 from gtts import gTTS
+from content_engine import build_content_pack
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output"
@@ -129,10 +130,11 @@ PIXABAY_QUERIES = {
 }
 
 
-def fetch_pixabay_videos(title: str, max_clips: int = 3) -> list[Path]:
+def fetch_pixabay_videos(title: str, max_clips: int = 3,
+                         query_override: str = "") -> list[Path]:
     """Fetch several distinct topic-matched Pixabay clips for visual variety."""
     api_key = os.getenv("PIXABAY_API_KEY", "").strip()
-    query = PIXABAY_QUERIES.get(title)
+    query = query_override or PIXABAY_QUERIES.get(title)
     if not api_key or not query:
         print("Pixabay is not configured; using the animated background fallback.")
         return []
@@ -307,17 +309,19 @@ def render_pixabay_video(source_paths: list[Path], duration: float, video_path: 
     ])
 
 def main() -> None:
-    # The workflow sets TZ=Asia/Manila; daily rotation is stable for reruns.
-    # Run the déjà vu episode first for this test; daily rotation resumes afterward.
-    fact = next((item for item in FACTS if item["title"] == "BAKIT PARANG NARANASAN NA NATIN ITO?"), FACTS[date.today().toordinal() % len(FACTS)])
-    narration = fact["text"]
+    # Keep topic selection grounded in curated facts until research verification ships.
+    fact = FACTS[date.today().toordinal() % len(FACTS)]
+    pack = build_content_pack(fact)
+    narration = pack["narration"]
+    title = pack["title"]
 
     audio_path = OUT / "narration.mp3"
     srt_path = OUT / "captions.srt"
     video_path = OUT / f"factstory-{date.today().isoformat()}.mp4"
     metadata_path = OUT / "metadata.json"
+    content_path = OUT / "content-pack.json"
 
-    print(f"Selected fact: {fact['title']}")
+    print(f"Selected topic: {fact['title']} (AI: {pack['ai_generated']})")
     print("Generating Filipino narration...")
     raw_audio_path = OUT / "narration-raw.mp3"
     gTTS(text=narration, lang="tl", slow=False).save(str(raw_audio_path))
@@ -350,10 +354,11 @@ def main() -> None:
     write_srt(narration, duration, srt_path)
 
     # Use moving Pixabay footage when available; never use still images as backgrounds.
-    pixabay_videos = fetch_pixabay_videos(fact["title"], max_clips=3)
+    pixabay_videos = fetch_pixabay_videos(fact["title"], max_clips=3,
+                                          query_override=pack["visual_query"])
     if pixabay_videos:
         print(f"Rendering {len(pixabay_videos)} distinct Pixabay clips with expanded narration and captions...")
-        render_pixabay_video(pixabay_videos, duration, video_path, audio_path, srt_path, fact["title"])
+        render_pixabay_video(pixabay_videos, duration, video_path, audio_path, srt_path, title)
         visual_style = f"{len(pixabay_videos)} topic-matched Pixabay clips, sequenced vertically in 9:16"
     else:
         # Free fallback: animated color shapes, not a still-image background.
@@ -363,7 +368,7 @@ def main() -> None:
             "drawbox=x='mod(t*18\\,1000)-250':y=980:w=320:h=180:color=0x06B6D4@0.32:t=fill,"
             "drawtext=text='ALAM MO BA?':fontcolor=0x7DD3FC:fontsize=22:font='DejaVu Sans':"
             "borderw=2:bordercolor=black@0.75:x=(w-text_w)/2:y=58:enable='between(t,0,2.8)',"
-            f"drawtext=text='{fact['title']}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
+            f"drawtext=text='{title}':fontcolor=white:fontsize=27:font='DejaVu Sans':"
             "borderw=3:bordercolor=black@0.85:x=(w-text_w)/2:y=96,"
             f"subtitles='{srt_path.as_posix()}':force_style="
             "'FontName=DejaVu Sans,FontSize=13,Bold=1,PrimaryColour=&H00FFFFFF,"
@@ -386,14 +391,25 @@ def main() -> None:
 
     metadata_path.write_text(json.dumps({
         "date": date.today().isoformat(),
-        "title": fact["title"],
+        "title": title,
         "narration": narration,
+        "caption": pack["caption"],
+        "hashtags": pack["hashtags"],
+        "youtube_description": pack["youtube_description"],
+        "thumbnail_concept": pack["thumbnail_concept"],
+        "hook_options": pack["hooks"],
+        "retention_audit": pack["audit_notes"],
+        "ai_generated": pack["ai_generated"],
+        "model": pack["model"],
+        "editorial_review_required": pack["review_required"],
         "duration_seconds": round(duration, 2),
         "video_file": video_path.name,
         "visual_style": visual_style,
         "caption_style": "bold high-contrast mobile subtitles",
         "target_duration_seconds": 45,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    content_path.write_text(json.dumps(pack, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"SUCCESS: {video_path}")
     print(f"Duration: {duration:.1f} seconds (target: about 45 seconds)")
