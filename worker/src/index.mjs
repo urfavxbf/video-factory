@@ -22,6 +22,13 @@ const STORYBOARD_SCHEMA = {
   required:["mainSubjectReference","scenes"],
   additionalProperties:false
 };
+export const FLOW_VIDEO_STYLES = Object.freeze({
+  animated: "Original hand-drawn 2D cartoon animation with clean outlines, expressive character acting, painterly backgrounds, and fluid animated camera motion. No live-action footage.",
+  "3d": "Stylized 3D CGI animation with consistent character models, detailed materials, expressive faces, soft global illumination, and smooth virtual-camera motion.",
+  anime: "Original Japanese-anime-inspired 2D animation, expressive anime character designs, cel shading, detailed illustrated backgrounds, and elegant anime cinematography. Avoid named anime franchises or studios.",
+  realistic: "Photorealistic live-action documentary with believable Filipino actors, natural skin texture and environments, soft available daylight, and understated handheld camera work. No cartoon effects.",
+  cinematic: "Premium photorealistic live-action film with Filipino actors, deliberate framing, shallow depth of field, dramatic natural lighting, controlled camera moves, and subtle performances."
+});
 const STYLES = ["relatable problem", "unexpected contrast", "short narrative", "myth versus evidence", "direct curiosity"];
 const response = (body, code = 200) => new Response(JSON.stringify(body), {
   status: code, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" }
@@ -126,14 +133,18 @@ export async function generatePack(env, data) {
 export function normalizeStoryboardRequest(input) {
   if (!input || typeof input !== "object" || Array.isArray(input))
     throw new Error("Invalid storyboard request");
+  const style = typeof input.style === "undefined" ? "cinematic" : input.style;
+  if (typeof style !== "string" || !Object.hasOwn(FLOW_VIDEO_STYLES, style))
+    throw new Error("Invalid Google Flow video style");
   return {
     title: field(input.title, "title", 12, 100),
     hook: field(input.hook, "hook", 8, 180),
     script: field(input.script, "script", 250, 1600),
+    style,
   };
 }
 
-export function validateStoryboard(value) {
+export function validateStoryboard(value, style = "cinematic") {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error("Invalid storyboard response");
   const mainSubjectReference = field(value.mainSubjectReference, "mainSubjectReference", 10, 450);
@@ -150,9 +161,16 @@ export function validateStoryboard(value) {
   });
   if (new Set(scenes.map(s => s.prompt.toLowerCase())).size !== 7)
     throw new Error("Duplicate scene prompts");
+  if (!Object.hasOwn(FLOW_VIDEO_STYLES, style)) throw new Error("Invalid Google Flow video style");
+  const styledScenes = scenes.map(scene => ({
+    ...scene,
+    prompt: FLOW_VIDEO_STYLES[style] + " Vertical 9:16 video, approximately 8 seconds. " +
+      scene.prompt + " No dialogue, voice-over, music, subtitles, logos or on-screen text."
+  }));
   return {
+    style,
     mainSubjectReference,
-    scenes,
+    scenes: styledScenes,
     clipDurationSeconds: 8,
     aspectRatio: "9:16",
     generatedVideo: false,
@@ -171,7 +189,7 @@ export async function generateStoryboard(env, data) {
     "complete detailed standalone English video prompt of 35-100 words.",
     "Each scene prompt should describe: location, concrete action, character appearance and clothing",
     "when the main character recurs, facial performance, composition, camera movement, lighting,",
-    "photorealistic cinematic style and the psychology/emotion of the beat.",
+    "the precise SELECTED visual style and the psychology/emotion of the beat.",
     "Make mainSubjectReference a reusable exact description of the recurring character or",
     "relevant recurring subject's age, appearance, clothing and setting.",
     "Repeat relevant character details INSIDE EVERY standalone scene prompt;",
@@ -185,6 +203,10 @@ export async function generateStoryboard(env, data) {
     "as imagined when needed, not as a factual claim that everyone is staring.",
     "Write voiceoverBeat as a SHORT Tagalog summary of the PART of the provided script",
     "shown during the corresponding 8-second scene; cover the narration in order.",
+    "SELECTED_STYLE is authoritative. For animated, use hand-drawn 2D cartoons;",
+    "for 3d, entirely CGI; for anime, original Japanese anime-influenced drawings;",
+    "for realistic, candid natural live action; for cinematic, dramatic filmic live action.",
+    "Do not switch visual styles between scenes or mix animation with live action.",
     "Return ONLY JSON matching the schema with mainSubjectReference and exactly 7 scenes.",
     "Each scene: title, voiceoverBeat, prompt. Scene titles should be specific and varied.",
   ].join(" ");
@@ -193,13 +215,13 @@ export async function generateStoryboard(env, data) {
     const result = await env.AI.run(MODEL, {
       messages: [
         {role:"system",content:prompt},
-        {role:"user",content:JSON.stringify(data) + (feedback ? "\nREWRITE TO PASS VALIDATION: " + feedback : "")},
+        {role:"user",content:JSON.stringify(data) + "\nSELECTED_STYLE_DESCRIPTION: " + FLOW_VIDEO_STYLES[data.style] + (feedback ? "\nREWRITE TO PASS VALIDATION: " + feedback : "")},
       ],
       response_format:{type:"json_schema",json_schema:{name:"flow_storyboard",schema:STORYBOARD_SCHEMA,strict:true}},
       temperature:0.65,
       max_tokens:3600,
     });
-    try { return validateStoryboard(parseAIResponse(result)); }
+    try { return validateStoryboard(parseAIResponse(result), data.style); }
     catch(error) {
       if (!(error instanceof Error)) throw error;
       feedback = error.message;
