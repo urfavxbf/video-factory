@@ -5,11 +5,13 @@ on:
     paths:
       - "worker/**"
       - ".github/workflows/validate-worker.yml"
+      - ".github/workflows/deploy-worker.yml"
   push:
     branches: [main]
     paths:
       - "worker/**"
       - ".github/workflows/validate-worker.yml"
+      - ".github/workflows/deploy-worker.yml"
 
 permissions:
   contents: read
