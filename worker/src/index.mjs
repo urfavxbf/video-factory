@@ -1,6 +1,34 @@
 /** Authenticated AI editorial service and 24-hour cached Pixabay search. */
 const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const CONTENT_SCHEMA = { type: "object", properties: { title:{type:"string"},script:{type:"string"},hook:{type:"string"},caption:{type:"string"},hashtags:{type:"array",items:{type:"string"}},visualQueries:{type:"array",items:{type:"string"}},sourceNote:{type:"string"} }, required:["title","script","hook","caption","hashtags","visualQueries","sourceNote"], additionalProperties:false };
+const STORYBOARD_SCHEMA = {
+  type: "object",
+  properties: {
+    mainSubjectReference: {type:"string"},
+    scenes: {
+      type:"array",
+      items:{
+        type:"object",
+        properties:{
+          title:{type:"string"},
+          voiceoverBeat:{type:"string"},
+          prompt:{type:"string"}
+        },
+        required:["title","voiceoverBeat","prompt"],
+        additionalProperties:false
+      }
+    }
+  },
+  required:["mainSubjectReference","scenes"],
+  additionalProperties:false
+};
+export const FLOW_VIDEO_STYLES = Object.freeze({
+  animated: "Original hand-drawn 2D cartoon animation with clean outlines, expressive character acting, painterly backgrounds, and fluid animated camera motion. No live-action footage.",
+  "3d": "Stylized 3D CGI animation with consistent character models, detailed materials, expressive faces, soft global illumination, and smooth virtual-camera motion.",
+  anime: "Original Japanese-anime-inspired 2D animation, expressive anime character designs, cel shading, detailed illustrated backgrounds, and elegant anime cinematography. Avoid named anime franchises or studios.",
+  realistic: "Photorealistic live-action documentary with believable Filipino actors, natural skin texture and environments, soft available daylight, and understated handheld camera work. No cartoon effects.",
+  cinematic: "Premium photorealistic live-action film with Filipino actors, deliberate framing, shallow depth of field, dramatic natural lighting, controlled camera moves, and subtle performances."
+});
 const STYLES = ["relatable problem", "unexpected contrast", "short narrative", "myth versus evidence", "direct curiosity"];
 const response = (body, code = 200) => new Response(JSON.stringify(body), {
   status: code, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" }
@@ -102,6 +130,107 @@ export async function generatePack(env, data) {
   }
   throw new Error("CONTENT_VALIDATION_FAILED");
 }
+export function normalizeStoryboardRequest(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    throw new Error("Invalid storyboard request");
+  const style = typeof input.style === "undefined" ? "cinematic" : input.style;
+  if (typeof style !== "string" || !Object.hasOwn(FLOW_VIDEO_STYLES, style))
+    throw new Error("Invalid Google Flow video style");
+  return {
+    title: field(input.title, "title", 12, 100),
+    hook: field(input.hook, "hook", 8, 180),
+    script: field(input.script, "script", 250, 1600),
+    style,
+  };
+}
+
+export function validateStoryboard(value, style = "cinematic") {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("Invalid storyboard response");
+  const mainSubjectReference = field(value.mainSubjectReference, "mainSubjectReference", 10, 450);
+  if (!Array.isArray(value.scenes) || value.scenes.length !== 7)
+    throw new Error("Expected exactly seven storyboard scenes");
+  const scenes = value.scenes.map((scene, index) => {
+    if (!scene || typeof scene !== "object" || Array.isArray(scene))
+      throw new Error("Invalid scene " + (index + 1));
+    return {
+      title: field(scene.title, "scene title", 6, 95),
+      voiceoverBeat: field(scene.voiceoverBeat, "voiceoverBeat", 10, 200),
+      prompt: field(scene.prompt, "scene prompt", 125, 1100),
+    };
+  });
+  if (new Set(scenes.map(s => s.prompt.toLowerCase())).size !== 7)
+    throw new Error("Duplicate scene prompts");
+  if (!Object.hasOwn(FLOW_VIDEO_STYLES, style)) throw new Error("Invalid Google Flow video style");
+  const styledScenes = scenes.map(scene => ({
+    ...scene,
+    prompt: FLOW_VIDEO_STYLES[style] + " Vertical 9:16 video, approximately 8 seconds. " +
+      scene.prompt + " No dialogue, voice-over, music, subtitles, logos or on-screen text."
+  }));
+  return {
+    style,
+    mainSubjectReference,
+    scenes: styledScenes,
+    clipDurationSeconds: 8,
+    aspectRatio: "9:16",
+    generatedVideo: false,
+    needsHumanReview: true,
+  };
+}
+
+export async function generateStoryboard(env, data) {
+  if (!env.AI?.run) throw new Error("Workers AI binding unavailable");
+  const prompt = [
+    "You are a cinematic storyboard director making seven ORIGINAL Google Flow VIDEO GENERATION PROMPTS.",
+    "The supplied Filipino voice-over SCRIPT is the source of truth. Storyboard only its actual scenes and claims.",
+    "Create a coherent seven-scene video, approximately 8 seconds per scene, vertical 9:16,",
+    "for a Filipino YouTube Short edited later in CapCut.",
+    "CRITICAL: The output is not seven suggested stock-search terms; each PROMPT must be a",
+    "complete detailed standalone English video prompt of 35-100 words.",
+    "Each scene prompt should describe: location, concrete action, character appearance and clothing",
+    "when the main character recurs, facial performance, composition, camera movement, lighting,",
+    "the precise SELECTED visual style and the psychology/emotion of the beat.",
+    "Make mainSubjectReference a reusable exact description of the recurring character or",
+    "relevant recurring subject's age, appearance, clothing and setting.",
+    "Repeat relevant character details INSIDE EVERY standalone scene prompt;",
+    "do not write only 'same student as scene 1'.",
+    "Use a varied visual arc: emotional hook, relatable event, explanatory conceptual image,",
+    "character reaction, perspective shift, realization, memorable visual conclusion.",
+    "Do not insert unsupported research claims or quotations, identifiable celebrities,",
+    "logos, onscreen typography, subtitles, dialogue, synthetic voice-over, or music.",
+    "No visible text or captions. Leave narration and music for ElevenLabs and CapCut.",
+    "The imagined feeling of other people looking at the character must be represented",
+    "as imagined when needed, not as a factual claim that everyone is staring.",
+    "Write voiceoverBeat as a SHORT Tagalog summary of the PART of the provided script",
+    "shown during the corresponding 8-second scene; cover the narration in order.",
+    "SELECTED_STYLE is authoritative. For animated, use hand-drawn 2D cartoons;",
+    "for 3d, entirely CGI; for anime, original Japanese anime-influenced drawings;",
+    "for realistic, candid natural live action; for cinematic, dramatic filmic live action.",
+    "Do not switch visual styles between scenes or mix animation with live action.",
+    "Return ONLY JSON matching the schema with mainSubjectReference and exactly 7 scenes.",
+    "Each scene: title, voiceoverBeat, prompt. Scene titles should be specific and varied.",
+  ].join(" ");
+  let feedback = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await env.AI.run(MODEL, {
+      messages: [
+        {role:"system",content:prompt},
+        {role:"user",content:JSON.stringify(data) + "\nSELECTED_STYLE_DESCRIPTION: " + FLOW_VIDEO_STYLES[data.style] + (feedback ? "\nREWRITE TO PASS VALIDATION: " + feedback : "")},
+      ],
+      response_format:{type:"json_schema",json_schema:{name:"flow_storyboard",schema:STORYBOARD_SCHEMA,strict:true}},
+      temperature:0.65,
+      max_tokens:3600,
+    });
+    try { return validateStoryboard(parseAIResponse(result), data.style); }
+    catch(error) {
+      if (!(error instanceof Error)) throw error;
+      feedback = error.message;
+      if (attempt === 1) throw new Error("STORYBOARD_VALIDATION_FAILED");
+    }
+  }
+  throw new Error("STORYBOARD_VALIDATION_FAILED");
+}
+
 export function cleanAssetResults(kind, json) {
   return (Array.isArray(json?.hits) ? json.hits : []).slice(0, 8).flatMap(hit => {
     const pageUrl = String(hit.pageURL || "");
@@ -163,12 +292,21 @@ export default {
         if (raw.length > 8192) return response({ error: "Request too large" }, 413);
         return response(await generatePack(env, normalizeRequest(JSON.parse(raw))));
       }
+      if (url.pathname === "/v1/storyboard" && request.method === "POST") {
+        if (Number(request.headers.get("content-length") || 0) > 8192)
+          return response({error:"Request too large"},413);
+        const raw = await request.text();
+        if (raw.length > 8192) return response({error:"Request too large"},413);
+        return response(await generateStoryboard(env, normalizeStoryboardRequest(JSON.parse(raw))));
+      }
       if (url.pathname === "/v1/assets" && request.method === "GET")
         return response(await assetSearch(env, url.searchParams.get("query") || "",
           url.searchParams.get("kind") || "", typeof caches === "undefined" ? null : caches.default));
       return response({ error: "Not found" }, 404);
     } catch (error) {
       if (error instanceof SyntaxError) return response({ error: "AI returned invalid structured JSON. Retry." }, 502);
+      if (error instanceof Error && error.message === "STORYBOARD_VALIDATION_FAILED")
+        return response({error:"Google Flow storyboard did not pass quality checks after retry. Try again.",code:"STORYBOARD_VALIDATION_FAILED"},422);
       if (error instanceof Error && error.message === "CONTENT_VALIDATION_FAILED")
         return response({ error: "AI draft did not pass quality checks after retry. Try a more specific topic.", code:"CONTENT_VALIDATION_FAILED" }, 422);
       if (error instanceof Error && /quota|rate.limit|capacity|limit.exceeded|429/i.test(error.message))

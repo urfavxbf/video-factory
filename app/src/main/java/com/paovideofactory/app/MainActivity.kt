@@ -63,6 +63,9 @@ private fun ContentStudio(settings: ConnectionSettings) {
     var topic by rememberSaveable { mutableStateOf("") }
     var angle by rememberSaveable { mutableStateOf("") }
     var kit by remember { mutableStateOf<ContentKit?>(null) }
+    var selectedFlowStyle by rememberSaveable { mutableStateOf("cinematic") }
+    var storyboard by remember { mutableStateOf<FlowStoryboard?>(null) }
+    var isGeneratingStoryboard by remember { mutableStateOf(false) }
     var isGenerating by remember { mutableStateOf(false) }
     var isLoadingAssets by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("Ilagay ang paksa para gumawa ng original content kit.") }
@@ -108,6 +111,25 @@ private fun ContentStudio(settings: ConnectionSettings) {
     val saveImage = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("image/jpeg")
     ) { uri -> onDocumentChosen(uri) }
+    val saveStoryboard = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        val currentKit = kit
+        val currentStoryboard = storyboard
+        if (uri != null && currentKit != null && currentStoryboard != null) {
+            scope.launch {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use {
+                            it.write(currentStoryboard.textExport(currentKit))
+                        } ?: error("Cannot write Google Flow storyboard")
+                    }
+                }.onSuccess { message = "Google Flow storyboard saved as .txt file." }
+                    .onFailure { message = "Storyboard export error: " + (it.message ?: "Unknown") }
+            }
+        }
+    }
+
     val saveKit = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain")
     ) { uri ->
@@ -204,6 +226,7 @@ private fun ContentStudio(settings: ConnectionSettings) {
                                 }
                             }.onSuccess { created ->
                                 kit = created
+                                storyboard = null
                                 history.addTitle(created.title)
                                 message = "AI draft created. Review facts bago i-publish."
                                 loadAssets(created.visualQueries.first(), "videos")
@@ -333,6 +356,112 @@ private fun ContentStudio(settings: ConnectionSettings) {
                     "Hindi pa direct in-app audio download ito. Bawat track ay may sariling license; " +
                         "i-check bago gamitin, at huwag i-register sa Content ID. " +
                         "Hinaan ang background music para malinaw ang ElevenLabs narration.",
+                    style = MaterialTheme.typography.bodySmall, color = Color.LightGray
+                )
+            }
+
+
+            Section("05  /  GOOGLE FLOW VIDEO STORYBOARD") {
+                Text(
+                    "Gumawa ng 7 detailed, copy-ready video prompts na susunod sa ElevenLabs script. " +
+                        "Piliin muna ang visual style. Bawat clip ay target na 8 seconds, vertical 9:16.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text("ANONG VIDEO STYLE ANG GUSTO MO?", color = Mint, fontWeight = FontWeight.Bold)
+                val styles = listOf(
+                    "animated" to "2D Animated",
+                    "3d" to "3D Animation",
+                    "anime" to "Japanese Anime",
+                    "realistic" to "Realistic",
+                    "cinematic" to "Cinematic"
+                )
+                styles.forEach { (id, label) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        RadioButton(
+                            selected = selectedFlowStyle == id,
+                            onClick = {
+                                if (!isGeneratingStoryboard && selectedFlowStyle != id) {
+                                    selectedFlowStyle = id
+                                    storyboard = null
+                                }
+                            },
+                            enabled = !isGeneratingStoryboard
+                        )
+                        Text(label, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isGeneratingStoryboard && !isGenerating && !showSetup,
+                    onClick = {
+                        isGeneratingStoryboard = true
+                        message = "Gumagawa ng 7 Google Flow scenes: " + selectedFlowStyle + "..."
+                        scope.launch {
+                            runCatching {
+                                withContext(Dispatchers.IO) {
+                                    ContentKitApi(endpoint, token).generateStoryboard(current, selectedFlowStyle)
+                                }
+                            }.onSuccess {
+                                storyboard = it
+                                message = "Google Flow storyboard ready. I-check ang visual continuity at i-adjust sa actual voice timing."
+                            }.onFailure {
+                                message = "Google Flow storyboard error: " + (it.message ?: "Try again.")
+                            }
+                            isGeneratingStoryboard = false
+                        }
+                    }
+                ) {
+                    if (isGeneratingStoryboard) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Generate Google Flow prompts")
+                    }
+                }
+                storyboard?.let { plan ->
+                    Text(
+                        "Selected style: " + styles.firstOrNull { it.first == plan.style }?.second.orEmpty() +
+                            "  •  7 clips  •  9:16",
+                        color = Mint, fontWeight = FontWeight.Bold
+                    )
+                    CopyText("CHARACTER / SUBJECT REFERENCE", plan.mainSubjectReference, context)
+                    plan.scenes.forEachIndexed { index, scene ->
+                        Text(
+                            "SCENE " + (index + 1) + "  /  " + scene.title,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Voice-over beat: " + scene.voiceoverBeat,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.LightGray
+                        )
+                        CopyText("GOOGLE FLOW PROMPT — SCENE " + (index + 1), scene.prompt, context)
+                    }
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(
+                                ClipData.newPlainText("Google Flow Storyboard", plan.textExport(current))
+                            )
+                            Toast.makeText(context, "Complete storyboard copied", Toast.LENGTH_SHORT).show()
+                        }
+                    ) { Text("Copy all 7 scenes") }
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { saveStoryboard.launch("VideoFactory_Google_Flow_Storyboard.txt") }
+                    ) { Text("Save Google Flow storyboard (.txt)") }
+                }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { openExternal(context, "https://labs.google/fx/tools/flow") }
+                ) { Text("Open Google Flow") }
+                Text(
+                    "Google Flow ang gagawa ng video clips; prompts lamang ang nililikha rito. " +
+                        "I-edit ang bawat clip sa CapCut at maglagay ng narration at licensed music.",
                     style = MaterialTheme.typography.bodySmall, color = Color.LightGray
                 )
             }
