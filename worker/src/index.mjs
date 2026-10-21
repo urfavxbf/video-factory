@@ -111,8 +111,10 @@ export async function assetSearch(env, query, kind, cache) {
     throw new Error("Invalid asset search request");
   const cacheKey = new Request("https://cache.videofactory.example/" + kind + "?q=" + encodeURIComponent(q.toLowerCase()));
   if (cache) {
-    const existing = await cache.match(cacheKey);
-    if (existing) return existing.json();
+    try {
+      const existing = await cache.match(cacheKey);
+      if (existing) return existing.json();
+    } catch { /* Cache API can be unavailable in development/preview. */ }
   }
   const url = new URL(kind === "videos" ? "https://pixabay.com/api/videos/" : "https://pixabay.com/api/");
   const params = {
@@ -124,9 +126,11 @@ export async function assetSearch(env, query, kind, cache) {
   if (!upstream.ok) throw new Error("Pixabay HTTP " + upstream.status);
   const result = { results: cleanAssetResults(kind, await upstream.json()), attribution: "Media by Pixabay contributors" };
   if (cache) {
-    await cache.put(cacheKey, new Response(JSON.stringify(result), {
-      headers: { "Cache-Control": "public,max-age=86400", "Content-Type": "application/json" },
-    }));
+    try {
+      await cache.put(cacheKey, new Response(JSON.stringify(result), {
+        headers: { "Cache-Control": "public,max-age=86400", "Content-Type": "application/json" },
+      }));
+    } catch { /* Do not block owner-initiated searches when cache is unavailable. */ }
   }
   return result;
 }
