@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import worker, {
   authorized, normalizeRequest, validateContentPack,
-  parseAIResponse, cleanAssetResults, assetSearch, normalizeStoryboardRequest, validateStoryboard
+  parseAIResponse, cleanAssetResults, assetSearch, normalizeStoryboardRequest, validateStoryboard, FLOW_VIDEO_STYLES
 } from "../src/index.mjs";
 
 const base = () => ({
@@ -203,4 +203,37 @@ test("invalid Google Flow scene output retries then returns a safe error",async(
   assert.equal(response.status,422);
   assert.equal((await response.json()).code,"STORYBOARD_VALIDATION_FAILED");
   assert.equal(calls,2);
+});
+
+test("all five visual style choices are accepted and bad styles rejected",()=>{
+  const data=base();
+  const choices=["animated","3d","anime","realistic","cinematic"];
+  assert.deepEqual(Object.keys(FLOW_VIDEO_STYLES),choices);
+  for(const style of choices){
+    const parsed=normalizeStoryboardRequest({...data,style});
+    assert.equal(parsed.style,style);
+    const storyboard=validateStoryboard(flowDraft(),style);
+    assert.equal(storyboard.style,style);
+    assert.ok(storyboard.scenes.every(x=>x.prompt.startsWith(FLOW_VIDEO_STYLES[style])));
+    assert.ok(storyboard.scenes.every(x=>x.prompt.includes("9:16")));
+  }
+  assert.equal(normalizeStoryboardRequest(data).style,"cinematic");
+  assert.throws(()=>normalizeStoryboardRequest({...data,style:"unknown"}),/Invalid Google Flow video style/);
+  assert.throws(()=>normalizeStoryboardRequest({...data,style:1337}),/Invalid Google Flow video style/);
+});
+
+test("user-selected anime style is passed into the AI storyboard prompt",async()=>{
+  const data=base();
+  const env={APP_ACCESS_TOKEN:"secret",AI:{run:async (_model,opts)=>{
+    assert.match(opts.messages[1].content,/SELECTED_STYLE_DESCRIPTION: Original Japanese-anime-inspired 2D animation/);
+    return {response:flowDraft()};
+  }}};
+  const res=await worker.fetch(new Request("https://test.local/v1/storyboard",{
+    method:"POST",headers:{"authorization":"Bearer secret"},
+    body:JSON.stringify({...data,style:"anime"}),
+  }),env);
+  assert.equal(res.status,200);
+  const result=await res.json();
+  assert.equal(result.style,"anime");
+  assert.ok(result.scenes.every(x=>x.prompt.includes("Japanese-anime-inspired 2D animation")));
 });
