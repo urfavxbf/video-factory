@@ -1,5 +1,6 @@
 /** Authenticated AI editorial service and 24-hour cached Pixabay search. */
-const MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+const CONTENT_SCHEMA = { type: "object", properties: { title:{type:"string"},script:{type:"string"},hook:{type:"string"},caption:{type:"string"},hashtags:{type:"array",items:{type:"string"}},visualQueries:{type:"array",items:{type:"string"}},sourceNote:{type:"string"} }, required:["title","script","hook","caption","hashtags","visualQueries","sourceNote"], additionalProperties:false };
 const STYLES = ["relatable problem", "unexpected contrast", "short narrative", "myth versus evidence", "direct curiosity"];
 const response = (body, code = 200) => new Response(JSON.stringify(body), {
   status: code, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" }
@@ -38,7 +39,7 @@ export function validateContentPack(value, previousTitles = []) {
   if (wordCount < 65 || wordCount > 200) throw new Error("Script outside 65–200 words");
   const caption = field(value.caption, "caption", 30, 400);
   const hook = field(value.hook, "hook", 8, 160);
-  const hashtags = value.hashtags;
+  const hashtags = Array.isArray(value.hashtags) ? value.hashtags.map(s => typeof s === "string" ? (s.trim().startsWith("#") ? s.trim() : "#" + s.trim()) : s) : value.hashtags;
   if (!Array.isArray(hashtags) || hashtags.length < 3 || hashtags.length > 6 ||
       !hashtags.every(t => typeof t === "string" && /^#[A-Za-z0-9_]{2,40}$/.test(t)))
     throw new Error("Invalid hashtags");
@@ -79,14 +80,27 @@ export async function generatePack(env, data) {
     "images or footage, different scenes), sourceNote (claims that need verification).",
     "Ensure that title and caption have fresh wording that differs from prior titles."
   ].join(" ");
-  const result = await env.AI.run(MODEL, {
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: JSON.stringify(data) },
-    ],
-    response_format: { type: "json_object" }, temperature: 0.75, max_tokens: 1850,
-  });
-  return validateContentPack(parseAIResponse(result), data.previousTitles);
+  // Strict JSON schemas ensure arrays remain arrays, but cannot guarantee word
+  // budgets. Retry once with concrete validation feedback instead of returning
+  // unrelated filler or silently dropping to a repetitive template.
+  let feedback = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await env.AI.run(MODEL, {
+      messages: [
+        {role:"system",content:system + " Your response must follow the JSON schema. Hashtags must be strings with #. Narration must be at least 85 spoken Filipino words, ideally 100-125. Caption must be descriptive (at least 30 characters). Avoid generic slogans and unverified explanations."},
+        {role:"user",content:JSON.stringify(data) + (feedback ? "\\nREWRITE PREVIOUS DRAFT: " + feedback + ". Keep the factual content careful, do not invent claims." : "")},
+      ],
+      response_format: {type:"json_schema",json_schema:{name:"content_kit",schema:CONTENT_SCHEMA,strict:true}},
+      temperature:0.65,max_tokens:2200,
+    });
+    try { return validateContentPack(parseAIResponse(result),data.previousTitles); }
+    catch(error) {
+      if (!(error instanceof Error)) throw error;
+      feedback = error.message;
+      if (attempt === 1) throw new Error("CONTENT_VALIDATION_FAILED");
+    }
+  }
+  throw new Error("CONTENT_VALIDATION_FAILED");
 }
 export function cleanAssetResults(kind, json) {
   return (Array.isArray(json?.hits) ? json.hits : []).slice(0, 8).flatMap(hit => {
@@ -154,7 +168,11 @@ export default {
           url.searchParams.get("kind") || "", typeof caches === "undefined" ? null : caches.default));
       return response({ error: "Not found" }, 404);
     } catch (error) {
-      if (error instanceof SyntaxError) return response({ error: "Invalid JSON" }, 422);
+      if (error instanceof SyntaxError) return response({ error: "AI returned invalid structured JSON. Retry." }, 502);
+      if (error instanceof Error && error.message === "CONTENT_VALIDATION_FAILED")
+        return response({ error: "AI draft did not pass quality checks after retry. Try a more specific topic.", code:"CONTENT_VALIDATION_FAILED" }, 422);
+      if (error instanceof Error && /quota|rate.limit|capacity|limit.exceeded|429/i.test(error.message))
+        return response({ error: "AI service limit or quota reached. Try later.", code:"AI_QUOTA" }, 503);
       if (error instanceof Error &&
           /Invalid|Missing|Topic|Angle|Duplicate|Expected|outside|too large/.test(error.message))
         return response({ error: error.message }, 422);
