@@ -292,8 +292,6 @@ private fun ContentStudio(settings: ConnectionSettings) {
                     style = MaterialTheme.typography.bodySmall, color = Color.LightGray
                 )
             }
-        }
-
 
             Section("04  /  BACKGROUND MUSIC FOR CAPCUT") {
                 Text(
@@ -338,6 +336,7 @@ private fun ContentStudio(settings: ConnectionSettings) {
                     style = MaterialTheme.typography.bodySmall, color = Color.LightGray
                 )
             }
+        }
 
         Spacer(Modifier.height(24.dp))
     }
