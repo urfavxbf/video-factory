@@ -55,6 +55,7 @@ def fallback_pack(seed: dict[str, str]) -> dict[str, Any]:
         "thumbnail_concept": f"Bold readable title: {seed['title']}",
         "audit_notes": "Curated source script; independent fact and licensing review still required.",
         "ai_generated": False,
+        "narration_source": "curated_seed",
         "model": None,
         "review_required": True,
     }
@@ -119,6 +120,7 @@ def validate_pack(payload: dict[str, Any]) -> dict[str, Any]:
         "thumbnail_concept": payload["thumbnail_concept"].strip(),
         "audit_notes": payload["audit_notes"].strip(),
         "ai_generated": True,
+        "narration_source": "ai",
         "model": MODEL,
         "review_required": True,
     }
@@ -169,6 +171,17 @@ def request_cloudflare_pack(
         parsed = parse_model_json(response_value)
     else:
         raise ValueError("Cloudflare AI returned no JSON response")
+    # Preserve valid AI hook/title/discovery work if ONLY the TTS script
+    # violates our proven 45-second seed word budget. Never pad with new facts.
+    narration_text = parsed.get("narration")
+    if isinstance(narration_text, str):
+        word_count = len(narration_text.split())
+        if not 70 <= word_count <= 125:
+            print(f"AI narration was {word_count} words; using curated voice-over.")
+            parsed["narration"] = seed["text"]
+            pack = validate_pack(parsed)
+            pack["narration_source"] = "curated_seed"
+            return pack
     return validate_pack(parsed)
 
 

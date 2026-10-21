@@ -39,7 +39,11 @@ The workflow already passes these repository secrets to the Python process:
 Never put credentials in Kotlin, an APK, prompts, commits, or logs. If one or
 both Cloudflare secrets are absent/invalid, the generator retains the previous
 prewritten script and marks `ai_generated: false`. A valid provider response
-sets `ai_generated: true` and includes the model name. No errors expose tokens.
+sets `ai_generated: true` and includes the model name. The separate
+`narration_source` field identifies whether the actual voice-over script came
+from the AI or the curated seed. If the AI narration is too short or too long,
+the app retains its valid AI hooks/discovery metadata but uses the safe seed
+narration for the video. No errors expose tokens.
 
 Cloudflare Workers AI has a free allocation, but it is quota-limited, not
 unconditionally unlimited or always free. The workflow makes a maximum of one
