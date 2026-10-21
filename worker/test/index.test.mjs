@@ -109,3 +109,33 @@ test("owner search still returns media if edge cache backend is unavailable", as
     assert.equal(result.results.length, 0);
   } finally { globalThis.fetch = previous; }
 });
+
+
+test("AI schema request retries invalid provider output and then succeeds", async () => {
+  let attempts = 0;
+  const data = base();
+  const env = {AI:{run: async (_model, opts) => {
+    attempts++;
+    assert.equal(opts.response_format.type, "json_schema");
+    assert.ok(opts.response_format.json_schema.schema.properties.visualQueries);
+    return {response: attempts === 1 ? {...data,script:"Too short"} : data};
+  }}};
+  const kit = await (await import("../src/index.mjs")).generatePack(env, {topic:"charging phone",angle:"",previousTitles:[]});
+  assert.equal(attempts,2);
+  assert.equal(kit.title,data.title);
+});
+
+test("model tags without # are normalized before publication", () => {
+  const kit=validateContentPack({...base(),hashtags:["TagalogTech","PhoneTips","SciencePH"]});
+  assert.deepEqual(kit.hashtags,["#TagalogTech","#PhoneTips","#SciencePH"]);
+});
+
+test("invalid drafts fail with useful safe public message after two attempts", async () => {
+  let tries=0;
+  const env={APP_ACCESS_TOKEN:"private",AI:{run:async()=>{tries++;return {response:{...base(),script:"Nope"}};}}};
+  const req=new Request("https://example.com/v1/generate",{method:"POST",headers:{authorization:"Bearer private"},body:JSON.stringify({topic:"charging phone"})});
+  const res=await worker.fetch(req,env);
+  assert.equal(tries,2);
+  assert.equal(res.status,422);
+  assert.equal((await res.json()).code,"CONTENT_VALIDATION_FAILED");
+});
