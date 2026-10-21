@@ -3,14 +3,16 @@
 This repository generates one vertical MP4 Filipino science-fact video per scheduled GitHub Actions run, designed for reuse on TikTok and YouTube Shorts.
 
 ## What it does
-- Chooses a pre-written Filipino science fact based on the date.
+- Rotates through curated Filipino factual seeds by date (no more hard-coded déjà vu episode).
+- Optionally calls Cloudflare Workers AI **once per run** to draft an original Filipino narration, five hooks, title, description, thumbnail concept, caption, hashtags, and Pixabay keywords. Requires the existing `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` GitHub Actions secrets.
+- Validates the structured AI response and **falls back to the original curated script** if the AI is unavailable or returns invalid content. Content is never auto-published; human factual/editorial review is required.
 - Uses expanded narration written to target approximately 45 seconds; actual duration depends on the generated voice audio.
 - Generates Filipino narration with gTTS.
 - Creates short, bold, high-contrast mobile subtitles timed to the narration and burns them into the video.
 - Adds an opening “ALAM MO BA?” hook and a title overlay.
-- Uses topic-matched Pixabay stock video when `PIXABAY_API_KEY` is configured.
+- Uses topic-matched Pixabay stock video when `PIXABAY_API_KEY` is configured, including AI-suggested search keywords where available.
 - If Pixabay is not configured, returns no usable footage, is rate-limited, or download fails, uses a moving animated geometric background. No still-image backgrounds are used.
-- Renders a 720×1280 vertical MP4 and uploads it with the narration, subtitles, and metadata as a GitHub Actions artifact.
+- Renders a 720×1280 vertical MP4 and uploads the narration, subtitles, `metadata.json`, and `content-pack.json` as a GitHub Actions artifact.
 
 ## Automation
 - Scheduled daily at 01:00 Philippine time (17:00 UTC).
@@ -29,4 +31,5 @@ Pixabay is tried first using one topic-matched stock clip per video. The script 
 - This creates a video artifact; it does **not** publish automatically to TikTok or YouTube.
 - The target is approximately 45 seconds, not a guaranteed exact duration; duration depends on the generated narration.
 - The project uses GitHub Actions, FFmpeg, and gTTS without requiring a paid video-generation API. gTTS is an unofficial interface to Google Translate's text-to-speech service; check applicable terms and commercial-use rights before monetizing.
-- Facts are pre-written in `scripts/generate.py`; review and update them as needed.
+- Seed facts remain in `scripts/generate.py`. AI rewriting is **not independently fact-checked**: review the script and any claims before uploading.
+- Android app MP4 rendering is a **separate** local implementation; this first AI integration changes only the GitHub Actions/Python video generator. See [AI content pipeline](docs/CONTENT_PIPELINE.md).
