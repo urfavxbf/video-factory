@@ -400,6 +400,7 @@ def main() -> None:
         "hook_options": pack["hooks"],
         "retention_audit": pack["audit_notes"],
         "ai_generated": pack["ai_generated"],
+        "narration_source": pack["narration_source"],
         "model": pack["model"],
         "editorial_review_required": pack["review_required"],
         "duration_seconds": round(duration, 2),
