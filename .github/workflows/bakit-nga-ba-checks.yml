@@ -1,0 +1,34 @@
+name: Validate Bakit Nga Ba Workflow
+
+on:
+  pull_request:
+    paths:
+      - 'episodes/**'
+      - 'scripts/bakit_nga_ba_music.py'
+      - 'scripts/render_bakit_nga_ba.py'
+      - 'tests/test_bakit_nga_ba.py'
+      - '.github/workflows/bakit-nga-ba-*.yml'
+      - 'docs/BAKIT_NGA_BA_SHORTS.md'
+  push:
+    branches: [main]
+    paths:
+      - 'episodes/**'
+      - 'scripts/bakit_nga_ba_music.py'
+      - 'scripts/render_bakit_nga_ba.py'
+      - 'tests/test_bakit_nga_ba.py'
+      - '.github/workflows/bakit-nga-ba-*.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m compileall -q scripts/render_bakit_nga_ba.py scripts/bakit_nga_ba_music.py
+      - run: python -m unittest discover -s tests -p 'test_bakit_nga_ba.py' -v
+      - run: python scripts/render_bakit_nga_ba.py --dry-run --style 3d --visual-source local
