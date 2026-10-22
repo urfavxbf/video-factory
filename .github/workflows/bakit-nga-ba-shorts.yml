@@ -1,0 +1,84 @@
+name: Bakit Nga Ba - Render Short (No Upload)
+
+on:
+  workflow_dispatch:
+    inputs:
+      episode:
+        description: Episode to render
+        required: true
+        type: choice
+        options:
+          - cheaters-relationship
+      visual_style:
+        description: Consistent story visual style
+        required: true
+        default: 3d
+        type: choice
+        options:
+          - 3d
+          - anime
+          - cinematic
+          - realistic
+      visual_source:
+        description: AI stills / own files / stock (AI stills may be rate-limited)
+        required: true
+        default: pollinations
+        type: choice
+        options:
+          - pollinations
+          - local
+          - stock
+      resolution:
+        description: Portrait output resolution
+        required: true
+        default: 720p
+        type: choice
+        options:
+          - 720p
+          - 1080p
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bakit-nga-ba-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install FFmpeg and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Install pinned MIT-licensed PurffleShorts
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "git+https://github.com/Chamanrajragu/purffle-shorts.git@baaba035be13fa4aa2ebc31951d58ea141e2d74c"
+      - name: Preflight script and settings
+        run: |
+          python -m unittest discover -s tests -p 'test_bakit_nga_ba*.py' -v
+          python scripts/render_bakit_nga_ba.py --episode "episodes/${{ inputs.episode }}.json" --style "${{ inputs.visual_style }}" --visual-source "${{ inputs.visual_source }}" --resolution "${{ inputs.resolution }}" --dry-run
+      - name: Render Tagalog Short without publishing
+        env:
+          UPLOAD: "false"
+          POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+        run: |
+          python scripts/render_bakit_nga_ba.py --episode "episodes/${{ inputs.episode }}.json" --style "${{ inputs.visual_style }}" --visual-source "${{ inputs.visual_source }}" --resolution "${{ inputs.resolution }}"
+      - name: Save MP4 and editorial package (not a YouTube upload)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bakit-nga-ba-${{ inputs.episode }}-${{ inputs.visual_style }}-${{ github.run_number }}
+          path: |
+            bakitnga_output/
+            .bakitnga_runtime/script.json
+          if-no-files-found: warn
+          retention-days: 7
