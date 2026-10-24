@@ -14,8 +14,10 @@ permissions:
 jobs:
   check-worker-health:
     runs-on: ubuntu-latest
+    environment: production
     timeout-minutes: 3
     steps:
+      - uses: actions/checkout@v4
       - name: Check public Worker health without credentials
         shell: bash
         env:
@@ -27,7 +29,7 @@ jobs:
           from urllib.error import HTTPError, URLError
 
           request = Request(os.environ["WORKER_HEALTH_URL"], headers={
-              "User-Agent": "VideoFactory-GitHub-Actions-Healthcheck/1.0",
+              "User-Agent": "VideoFactory-GitHub-Actions/1.0",
               "Accept": "application/json",
           })
           try:
@@ -67,7 +69,7 @@ jobs:
               "Authorization": "Bearer diagnostic-invalid-token",
               "Content-Type": "application/json",
               "Accept": "application/json",
-              "User-Agent": "VideoFactory-GitHub-Actions-Healthcheck/1.0",
+              "User-Agent": "VideoFactory-GitHub-Actions/1.0",
           })
           try:
               with urlopen(request, timeout=20) as response:
@@ -112,6 +114,30 @@ jobs:
           except HTTPError as error:
               print("Python urllib default UA status:", error.code)
               print("Content type:", error.headers.get("content-type", "unknown"))
-              if error.code != 401:
-                  raise SystemExit("Default Python request headers were blocked before Worker auth")
+              if error.code == 403:
+                  print("Confirmed: legacy default Python urllib UA is blocked at the edge.")
+              elif error.code != 401:
+                  raise SystemExit("Unexpected legacy request status.")
+          PY
+
+      - name: Live KURI generation smoke test (this PR only)
+        if: github.event_name == 'pull_request' && github.event.pull_request.number == 17
+        shell: bash
+        env:
+          APP_ACCESS_TOKEN: ${{ secrets.APP_ACCESS_TOKEN }}
+          KURI_WORKER_ORIGIN: https://video-factory-content-kit.wordplays-transcribe.workers.dev
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from scripts.kuri_cloud_pack import main
+          import os, sys
+          if len(os.getenv("APP_ACCESS_TOKEN", "")) < 12:
+              raise SystemExit("Missing APP_ACCESS_TOKEN in production environment")
+          sys.argv = ["kuri_cloud_pack.py", "--topic", "Bakit may kakaibang amoy ang ulan?",
+                      "--angle", "Science explanation using seven original animated scenes",
+                      "--output-dir", "/tmp/kuri-cloud-smoke"]
+          code = main()
+          assert Path("/tmp/kuri-cloud-smoke/kuri-review-pack.json").is_file()
+          print("Real Worker generate + storyboard calls succeeded with explicit user agent.")
+          raise SystemExit(code)
           PY
