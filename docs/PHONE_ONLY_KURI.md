@@ -9,8 +9,9 @@ The resulting ZIP can be downloaded from GitHub Actions using an Android browser
 1. Open **[GitHub Actions → Generate KURI 3D Scene Pack](https://github.com/urfavxbf/video-factory/actions/workflows/generate-kuri-pack.yml)**.
 2. Select **Run workflow**, choose **main**, enter a Tagalog topic and optional creative angle; select **Run workflow**.
 3. Open the run after completion, scroll to **Artifacts**, and download **kuri-3d-scene-pack-N** (ZIP).
-4. In the ZIP, open `kuri-flow-prompts.txt` for the seven Google Flow prompts (each includes an animation direction and a Tagalog voiceover beat). `kuri-review-pack.json` contains structured metadata for later rendering integrations.
-5. Generate scene videos in a compatible AI video product (with the approved KURI image reference), and review Tagalog narration, licensing and claims before publishing.
+4. In the ZIP, open `kuri-flow-prompts.txt` for the seven Google Flow prompts (each now has **exact spoken dialogue from the master script**, 3D visuals, precise camera movement, voice/lip-sync direction and quiet scene-appropriate sound effects). `kuri-review-pack.json` contains structured metadata for later rendering integrations.
+5. For **Google Flow**, extract the ZIP and open each `scenes/scene-01-google-flow.txt` through `scene-07-google-flow.txt` file. Copy its complete prompt, supply the approved KURI reference image and generate each scene separately. Use the same reference and voice direction every time.
+6. Check the actual spoken words and lip-sync against the **EXACT SPOKEN TAGALOG DIALOGUE** section: the prompt requests faithful narration, but Flow may truncate, paraphrase or vary the voice. Retry or use a separate narration track when needed. Review facts, visual continuity and usage rights before publishing.
 
 ## Configuration
 
@@ -22,12 +23,15 @@ The token **APP_ACCESS_TOKEN** must be set as a GitHub repository secret or the 
 
 - Generates an original Tagalog script and metadata through `POST /v1/generate`.
 - Calls `POST /v1/storyboard` for exactly seven 3D scene directions.
-- Adds KURI visual reference and deep masculine Metro Manila Tagalog voice direction to Google Flow prompts.
+- Splits the full Tagalog script across seven scenes **without rewriting, skipping or duplicating its original words**. These exact dialogue segments take priority over the Worker's shorter scene summaries.
+- Each Google Flow prompt combines KURI's visual reference, 3D animation scene, explicit camera movement, one-speaker Tagalog dialogue, masculine Metro Manila voice/lip sync and restrained contextual sound effects.
+- Separately emits seven easy-to-copy scene text files under `scenes/`; preserves silent-only alternatives if you later need separate ElevenLabs audio.
+- Includes pacing warnings if a scene contains over 20 spoken words, which may not fit an approximately eight-second clip.
 - Packages the outputs as GitHub Artifacts kept for seven days.
 - Enforces endpoint and origin allowlists, output validation and no publishing.
 - Runs only when clicked; it has **no schedule** to avoid surprise AI usage.
 
-The user still needs a compatible video generation service, and approved KURI **reference image** must be supplied to that service for better identity consistency. This workflow **does not make video clips, an ElevenLabs recording, or an MP4**, and does not claim that Google Flow can be automated through an undocumented interface.
+The user still needs access to Google Flow (or another capable video generator), and the approved KURI **reference image** must be supplied to that service for better identity consistency. Matching the animation to the spoken lines is an editorial task: audio rendering and lip-sync quality are not guaranteed by the prompt. Scene dialogue is verbatim from the master script but visual directions were independently generated, so review scene relevance before spending generation credits. This workflow **does not make video clips, an ElevenLabs recording, or an MP4**, and does not claim that Google Flow can be automated through an undocumented interface.
 
 ## Cost & accessibility
 

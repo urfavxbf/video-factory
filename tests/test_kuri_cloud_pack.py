@@ -1,4 +1,5 @@
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +11,8 @@ from scripts.kuri_cloud_pack import (
     worker_origin,
     write_review_pack,
     request_json,
+    split_exact_narration,
+    ambient_effect_for_scene,
 )
 
 
@@ -69,9 +72,64 @@ class CloudPackTests(unittest.TestCase):
         self.assertFalse(pack["videoGenerated"])
         for scene in pack["scenes"]:
             self.assertIn("golden-yellow hoodie", scene["googleFlowCombinedPrompt"])
-            self.assertIn("spoken in natural Tagalog", scene["googleFlowCombinedPrompt"])
+            self.assertIn("EXACT TAGALOG DIALOGUE", scene["googleFlowCombinedPrompt"])
+            self.assertIn("CAMERA MOVEMENT", scene["googleFlowCombinedPrompt"])
+            self.assertIn("AUDIO / SOUND EFFECTS", scene["googleFlowCombinedPrompt"])
+            self.assertIn("golden-yellow hoodie", scene["googleFlowCombinedPrompt"])
+            self.assertIn(scene["exactTagalogDialogue"], scene["googleFlowCombinedPrompt"])
             self.assertNotIn(NO_AUDIO_SUFFIX, scene["googleFlowCombinedPrompt"])
             self.assertIn("No narration", scene["silentAnimationPrompt"])
+
+
+    def test_exact_dialogue_reconstructs_all_narration_words(self):
+        script = ('Bakit nga ba mabango ang ulan? Nararamdaman ito sa unang patak. '
+                  'May mga molekulang nagbibigay ng amoy sa lupa. '
+                  'Lumalabas ang ilang sangkap kapag umulan. '
+                  'Madalas itong mas mapansin matapos ang tagtuyot. '
+                  'May mga siyentipikong nag-aaral ng mga amoy na ito. '
+                  'Hindi lahat ng ulan ay pareho ang amoy. '
+                  'Tandaan: obserbahan ang amoy sa paligid nang ligtas.')
+        segments = split_exact_narration(script)
+        self.assertEqual(7, len(segments))
+        self.assertEqual(script.split(), " ".join(segments).split())
+        self.assertEqual(segments, split_exact_narration(script))
+        self.assertTrue(all(segment.strip() for segment in segments))
+
+    def test_exact_dialogue_when_fewer_sentence_boundaries(self):
+        script = " ".join(f"salita{i}" for i in range(1, 120)) + "."
+        segments = split_exact_narration(script)
+        self.assertEqual(script.split(), " ".join(segments).split())
+        self.assertEqual(len(segments), 7)
+
+    def test_scene_dialogue_is_not_the_ai_summary(self):
+        pack = build_review_pack(valid_content(), valid_storyboard(), "Amoy ng ulan")
+        dialogue = " ".join(scene["exactTagalogDialogue"] for scene in pack["scenes"])
+        self.assertEqual(pack["fullTagalogNarration"].split(), dialogue.split())
+        self.assertNotEqual(
+            pack["scenes"][0]["exactTagalogDialogue"],
+            pack["scenes"][0]["tagalogVoiceoverBeat"],
+        )
+        self.assertTrue(pack["exactNarrationCoverage"])
+        self.assertFalse(pack["mayExceedEightSecondClip"])
+
+    def test_long_dialogue_sets_pacing_warning_without_dropping_words(self):
+        data = valid_content()
+        data["script"] = " ".join(f"salita{i}" for i in range(1, 181))
+        pack = build_review_pack(data, valid_storyboard(), "Science topic")
+        self.assertTrue(pack["mayExceedEightSecondClip"])
+        self.assertTrue(any(scene["durationWarning"] for scene in pack["scenes"]))
+        combined = " ".join(scene["exactTagalogDialogue"] for scene in pack["scenes"])
+        self.assertEqual(data["script"].split(), combined.split())
+
+    def test_context_aware_audio_without_extra_speaker(self):
+        self.assertIn("rain", ambient_effect_for_scene("A rainy street").lower())
+        self.assertIn("vacuum", ambient_effect_for_scene("Outer space vacuum"))
+        pack = build_review_pack(valid_content(), valid_storyboard(), "Amoy ng ulan")
+        for scene in pack["scenes"]:
+            text = scene["googleFlowCombinedPrompt"]
+            self.assertIn("KURI alone", text)
+            self.assertIn("no music", text)
+            self.assertIn("no second speaker", text)
 
     def test_bad_storyboard_is_rejected(self):
         storyboard = valid_storyboard()
@@ -94,6 +152,10 @@ class CloudPackTests(unittest.TestCase):
             self.assertEqual(pack, disk)
             self.assertEqual(text.count("GOOGLE FLOW PROMPT ("), 7)
             self.assertIn("FULL TAGALOG NARRATION", text)
+            for index in range(1, 8):
+                scene_text = (Path(directory) / "scenes" /
+                              f"scene-{index:02d}-google-flow.txt").read_text()
+                self.assertIn(pack["scenes"][index - 1]["exactTagalogDialogue"], scene_text)
 
     def test_worker_request_has_explicit_user_agent(self):
         class FakeResponse:
