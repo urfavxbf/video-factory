@@ -97,6 +97,7 @@ def require_text(data: dict, name: str, minimum: int = 1) -> str:
 
 
 
+
 SCENE_SECONDS = 8
 MAX_COMFORTABLE_WORDS_PER_SCENE = 20
 CAMERA_MOVEMENTS = (
@@ -111,11 +112,7 @@ CAMERA_MOVEMENTS = (
 
 
 def split_exact_narration(script: str, parts: int = 7) -> list[str]:
-    """Partition source words, preserving their exact spelling and punctuation.
-
-    Scene lines are excerpts from the authoritative full narration, never
-    AI-generated summaries or paraphrases. Prefer sentence-ending splits.
-    """
+    """Split the original spoken script without paraphrasing or skipping words."""
     tokens = list(re.finditer(r"\S+", script))
     n = len(tokens)
     if parts < 1 or n < parts:
@@ -131,10 +128,71 @@ def split_exact_narration(script: str, parts: int = 7) -> list[str]:
         for end in range(start + 1, n - remaining_scenes + 1):
             word_count = end - start
             spread_cost = (word_count - target) ** 2
-            # Encourage but do not force coherent sentence boundaries.
-            boundary_penalty = (
-                0.0 if end == n
-                or re.search(r'[.!?…][\x22”’)]?    title = require_text(content, "title", 12)
+            last_word = tokens[end - 1].group()
+            is_sentence_end = last_word.rstrip('"”’)]').endswith((".", "!", "?", "…"))
+            boundary_penalty = 0.0 if (end == n or is_sentence_end) else 2.5
+            pace_penalty = max(0, word_count - MAX_COMFORTABLE_WORDS_PER_SCENE) ** 2
+            remaining_cost, remaining = best(scene_index + 1, end)
+            candidates.append((
+                spread_cost + boundary_penalty + pace_penalty + remaining_cost,
+                (end,) + remaining,
+            ))
+        return min(candidates, key=lambda item: item[0])
+
+    _, boundaries = best(0, 0)
+    result = []
+    start = 0
+    for end in boundaries:
+        result.append(script[tokens[start].start():tokens[end - 1].end()])
+        start = end
+    assert len(result) == parts
+    assert [word for part in result for word in part.split()] == script.split()
+    return result
+
+
+def ambient_effect_for_scene(scene_prompt: str) -> str:
+    """Select restrained sound effects appropriate to the scene."""
+    text = scene_prompt.lower()
+    if any(w in text for w in ("rain", "storm", "puddle", "petrichor")):
+        return "Soft rain patter and gentle wet footsteps, well below KURI's voice"
+    if any(w in text for w in ("space", "moon", "planet", "galaxy", "vacuum")):
+        return "One subtle cinematic transition whoosh only; no sound propagating through vacuum"
+    if any(w in text for w in ("ocean", "sea", "underwater", "river", "lake")):
+        return "Soft water movement and a few restrained bubble or splash sounds"
+    if any(w in text for w in ("laboratory", "science lab", "microscope", "experiment")):
+        return "One soft equipment click and understated laboratory room tone"
+    if any(w in text for w in ("forest", "tree", "jungle", "garden")):
+        return "Soft rustling leaves and faint distant birds"
+    if any(w in text for w in ("street", "city", "sidewalk", "crowd")):
+        return "Very soft city room tone and subtle footsteps; no intelligible background speech"
+    return "A soft clothing rustle or natural footsteps only when the action warrants it"
+
+
+def make_flow_prompt(visual: str, dialogue: str, camera: str, effects: str) -> str:
+    exact_line = json.dumps(dialogue, ensure_ascii=False)
+    return (
+        "GOOGLE FLOW VIDEO GENERATION — one approximately 8-second vertical 9:16 scene. "
+        "REFERENCE IMAGE: Upload the approved KURI image as the consistent character reference. "
+        "VISUAL STYLE: premium cinematic 3D CGI, expressive facial animation and realistic adult "
+        "Filipino character proportions. MAIN CHARACTER: " + KURI_REFERENCE +
+        " VISUAL ACTION AND SETTING (use this for scenery, not audio): " + visual +
+        " CAMERA MOVEMENT: " + camera +
+        " SPEAKER: KURI alone, visibly speaking with natural Filipino lip movements, "
+        "precise lip sync and believable expressions. "
+        "VOICE CONSISTENCY ACROSS ALL SEVEN CLIPS: " + VOICE_DIRECTION +
+        " EXACT TAGALOG DIALOGUE — speak the following words ONCE, in this order, "
+        "without paraphrasing or adding another line: " + exact_line + ". "
+        "AUDIO / SOUND EFFECTS: " + effects +
+        ". Keep all effects subtle underneath the spoken line, no music, "
+        "no second speaker and no generic announcer voice. "
+        "If the visual scene brief mentions silence, that applies only to the scenery: "
+        "KURI's specified spoken dialogue is required. "
+        "No on-screen captions, logos, watermarks, titles or visible text."
+    )
+
+
+def build_review_pack(content: dict, storyboard: dict, topic: str) -> dict:
+    title = require_text(content, "title", 12)
     script = require_text(content, "script", 250)
     hook = require_text(content, "hook", 8)
     require_text(content, "caption", 30)
