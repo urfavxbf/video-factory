@@ -85,3 +85,33 @@ jobs:
               if error.code != 401:
                   raise SystemExit("Unauthenticated POST was blocked outside Worker auth.")
           PY
+
+
+      - name: Probe Python urllib default user agent (no token)
+        shell: bash
+        env:
+          WORKER_API_URL: https://video-factory-content-kit.wordplays-transcribe.workers.dev/v1/generate
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError
+
+          request = Request(os.environ["WORKER_API_URL"],
+              method="POST",
+              data=json.dumps({"topic":"Bakit may kakaibang amoy ang ulan?","angle":"Ipaliwanag ang petrichor sa masayang, madaling maintindihang paraan.","previousTitles":[]}).encode(),
+              headers={
+                  "Authorization": "Bearer diagnostic-invalid-token",
+                  "Content-Type": "application/json",
+                  "Accept": "application/json",
+              })
+          try:
+              with urlopen(request, timeout=20) as response:
+                  raise SystemExit(f"Unexpected accepted test token: {response.status}")
+          except HTTPError as error:
+              print("Python urllib default UA status:", error.code)
+              print("Content type:", error.headers.get("content-type", "unknown"))
+              if error.code != 401:
+                  raise SystemExit("Default Python request headers were blocked before Worker auth")
+          PY
