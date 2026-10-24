@@ -63,6 +63,8 @@ def request_json(origin: str, endpoint: str, token: str, payload: dict) -> dict:
             "Authorization": "Bearer " + token,
             "Content-Type": "application/json",
             "Accept": "application/json",
+            # Cloudflare rejects the default Python-urllib user agent with HTTP 403.
+            "User-Agent": "VideoFactory-GitHub-Actions/1.0",
         },
     )
     for attempt in range(3):
