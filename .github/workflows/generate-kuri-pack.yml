@@ -1,0 +1,65 @@
+name: Generate KURI 3D Scene Pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Topic in Tagalog (5-120 characters)"
+        required: true
+        default: "Bakit may kakaibang amoy ang ulan?"
+        type: string
+      angle:
+        description: "Optional creative angle (max 180 characters)"
+        required: false
+        default: "Ipaliwanag ang petrichor sa masayang, madaling maintindihang paraan."
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kuri-scene-pack
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 12
+    env:
+      KURI_WORKER_ORIGIN: ${{ vars.CONTENT_KIT_WORKER_URL || 'https://video-factory-content-kit.wordplays-transcribe.workers.dev' }}
+      APP_ACCESS_TOKEN: ${{ secrets.APP_ACCESS_TOKEN }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v4
+
+      - name: Use Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate script and seven-scene KURI prompts
+        env:
+          KURI_TOPIC: ${{ inputs.topic }}
+          KURI_ANGLE: ${{ inputs.angle }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from scripts.kuri_cloud_pack import main
+          import sys
+          sys.argv = ["kuri_cloud_pack.py", "--topic", os.environ["KURI_TOPIC"],
+                      "--angle", os.environ["KURI_ANGLE"]]
+          raise SystemExit(main())
+          PY
+
+      - name: Upload Android-downloadable story pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: kuri-3d-scene-pack-${{ github.run_number }}
+          path: |
+            output/kuri/kuri-review-pack.json
+            output/kuri/kuri-flow-prompts.txt
+          if-no-files-found: error
+          retention-days: 7

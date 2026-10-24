@@ -1,0 +1,31 @@
+name: Validate KURI cloud pack
+on:
+  pull_request:
+    paths:
+      - "scripts/kuri_cloud_pack.py"
+      - "tests/test_kuri_cloud_pack.py"
+      - ".github/workflows/generate-kuri-pack.yml"
+      - ".github/workflows/validate-kuri-cloud.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/kuri_cloud_pack.py"
+      - "tests/test_kuri_cloud_pack.py"
+      - ".github/workflows/generate-kuri-pack.yml"
+      - ".github/workflows/validate-kuri-cloud.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile and run unit tests without network or credentials
+        run: |
+          python -m py_compile scripts/kuri_cloud_pack.py
+          python -m unittest discover -s tests -p 'test_kuri_cloud_pack.py' -v
