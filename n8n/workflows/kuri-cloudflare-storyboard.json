@@ -1,0 +1,172 @@
+{
+  "name": "KURI | Cloudflare AI to 7-Scene 3D Review Pack",
+  "nodes": [
+    {
+      "id": "9bb99156-24a6-4d0c-a8bb-ed70d9a7ea20",
+      "name": "Manual Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        180,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "9bb99156-24a6-4d0c-a8bb-ed70d9a7ea21",
+      "name": "Episode Settings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Edit only these values for a new episode. Do not paste tokens here.\nconst config = {\n  topic: 'Bakit may amoy ang ulan?',\n  angle: 'Explain petrichor in accessible Tagalog with a curious and accurate hook.',\n  style: '3d',\n  workerBaseUrl: 'https://REPLACE_WITH_YOUR_WORKER.workers.dev'\n};\nif (typeof config.topic !== 'string' || config.topic.trim().length < 5 || config.topic.length > 120) {\n  throw new Error('Topic must be 5–120 characters');\n}\nif (typeof config.angle !== 'string' || config.angle.length > 180) {\n  throw new Error('Angle must be at most 180 characters');\n}\nif (config.style !== '3d') throw new Error('KURI baseline requires the 3d style');\nif (!/^https:\\/\\/[a-z0-9.-]+$/i.test(config.workerBaseUrl)\n || config.workerBaseUrl.includes('REPLACE_WITH_')) {\n  throw new Error('Configure a valid HTTPS Cloudflare Worker URL in Episode Settings');\n}\nreturn [{json:config}];"
+      }
+    },
+    {
+      "id": "9bb99156-24a6-4d0c-a8bb-ed70d9a7ea22",
+      "name": "Generate AI Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Episode Settings').first().json.workerBaseUrl + '/v1/generate' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ topic: $('Episode Settings').first().json.topic, angle: $('Episode Settings').first().json.angle, previousTitles: [] }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "9bb99156-24a6-4d0c-a8bb-ed70d9a7ea23",
+      "name": "Build Storyboard Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        940,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const generated = $input.first().json;\nconst style = $('Episode Settings').first().json.style;\nif (!generated || typeof generated !== 'object'\n || typeof generated.title !== 'string' || generated.title.length < 12\n || typeof generated.hook !== 'string' || generated.hook.length < 8\n || typeof generated.script !== 'string' || generated.script.length < 250) {\n  throw new Error('Cloudflare Worker returned an invalid content pack');\n}\nreturn [{json:{title:generated.title,hook:generated.hook,script:generated.script,style}}];"
+      }
+    },
+    {
+      "id": "9bb99156-24a6-4d0c-a8bb-ed70d9a7ea24",
+      "name": "Generate 7-Scene Storyboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Episode Settings').first().json.workerBaseUrl + '/v1/storyboard' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "9bb99156-24a6-4d0c-a8bb-ed70d9a7ea25",
+      "name": "Prepare KURI Review Pack",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1480,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const storyboard = $input.first().json;\nconst content = $('Generate AI Content').first().json;\nconst cfg = $('Episode Settings').first().json;\nif (!Array.isArray(storyboard.scenes) || storyboard.scenes.length !== 7\n || storyboard.style !== '3d') {\n  throw new Error('Expected exactly seven 3D storyboard scenes');\n}\nconst host = 'KURI: adult Filipino male science host, about 25 years old, medium-tan skin, masculine jawline, short textured black hair, expressive dark brown eyes, fit adult build, golden-yellow hoodie with a small teal question-mark on chest, navy joggers and white sneakers with teal accents.';\nconst unique = new Set();\nconst scenes = storyboard.scenes.map((scene, i) => {\n  if (typeof scene.prompt !== 'string' || scene.prompt.length < 125 ||\n      typeof scene.voiceoverBeat !== 'string' || scene.voiceoverBeat.length < 10) {\n    throw new Error('Incomplete storyboard scene ' + (i + 1));\n  }\n  const key = scene.prompt.trim().toLowerCase();\n  if (unique.has(key)) throw new Error('Duplicate scene prompt');\n  unique.add(key);\n  return {\n    sceneNumber: i + 1,\n    clipDurationSeconds: 8,\n    sceneTitle: scene.title,\n    voiceoverBeat: scene.voiceoverBeat,\n    animationPrompt: 'Premium cinematic 3D CGI. ' + host +\n      ' KURI is the recurring presenter; maintain consistent facial identity and wardrobe throughout. ' +\n      scene.prompt + ' Silent visual only; no on-screen text, dialogue, music or narration.',\n  };\n});\nreturn [{json:{\n  channel:'Bakit Nga Ba?',host:'KURI',language:'Tagalog',\n  topic:cfg.topic,style:'3d',title:content.title,hook:content.hook,\n  fullVoiceoverScript:content.script,caption:content.caption,\n  hashtags:content.hashtags,aspectRatio:'9:16',scenes,\n  audioDirection:'ElevenLabs: deep, warm masculine Filipino voice, Metro Manila Tagalog accent.',\n  generatedVideo:false,youtubeAutoUpload:false,editorialReviewRequired:true,\n  notes:'Review factual claims, scene continuity, audio timing, licensing and AI disclosure before rendering or publishing.'\n}}];"
+      }
+    }
+  ],
+  "connections": {
+    "Manual Start": {
+      "main": [
+        [
+          {
+            "node": "Episode Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Episode Settings": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Content": {
+      "main": [
+        [
+          {
+            "node": "Build Storyboard Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Storyboard Request": {
+      "main": [
+        [
+          {
+            "node": "Generate 7-Scene Storyboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate 7-Scene Storyboard": {
+      "main": [
+        [
+          {
+            "node": "Prepare KURI Review Pack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Manila"
+  },
+  "active": false,
+  "tags": []
+}
