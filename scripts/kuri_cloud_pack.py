@@ -9,7 +9,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import time
+from functools import lru_cache
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -94,6 +96,101 @@ def require_text(data: dict, name: str, minimum: int = 1) -> str:
     return text.strip()
 
 
+
+
+SCENE_SECONDS = 8
+MAX_COMFORTABLE_WORDS_PER_SCENE = 20
+CAMERA_MOVEMENTS = (
+    "Slow cinematic push-in from medium shot to KURI's expressive face; maintain clear lip sync.",
+    "Smooth side-tracking medium shot following KURI's movement; keep his speaking face in frame.",
+    "Gentle three-quarter angle dolly with a subtle rack focus to the scientific object and back.",
+    "Controlled 30-degree camera orbit around KURI, ending on his face while he speaks.",
+    "Soft upward camera tilt from foreground detail to KURI's medium close-up.",
+    "Slow steady dolly-in toward KURI's discovery expression without abrupt cuts.",
+    "Gradual pullback to a wider visual conclusion, keeping KURI's face readable.",
+)
+
+
+def split_exact_narration(script: str, parts: int = 7) -> list[str]:
+    """Split the original spoken script without paraphrasing or skipping words."""
+    tokens = list(re.finditer(r"\S+", script))
+    n = len(tokens)
+    if parts < 1 or n < parts:
+        raise ValueError("Not enough spoken words to split narration into scenes")
+    target = n / parts
+
+    @lru_cache(maxsize=None)
+    def best(scene_index: int, start: int) -> tuple[float, tuple[int, ...]]:
+        if scene_index == parts:
+            return (0.0, ()) if start == n else (float("inf"), ())
+        remaining_scenes = parts - scene_index - 1
+        candidates = []
+        for end in range(start + 1, n - remaining_scenes + 1):
+            word_count = end - start
+            spread_cost = (word_count - target) ** 2
+            last_word = tokens[end - 1].group()
+            is_sentence_end = last_word.rstrip('"”’)]').endswith((".", "!", "?", "…"))
+            boundary_penalty = 0.0 if (end == n or is_sentence_end) else 2.5
+            pace_penalty = max(0, word_count - MAX_COMFORTABLE_WORDS_PER_SCENE) ** 2
+            remaining_cost, remaining = best(scene_index + 1, end)
+            candidates.append((
+                spread_cost + boundary_penalty + pace_penalty + remaining_cost,
+                (end,) + remaining,
+            ))
+        return min(candidates, key=lambda item: item[0])
+
+    _, boundaries = best(0, 0)
+    result = []
+    start = 0
+    for end in boundaries:
+        result.append(script[tokens[start].start():tokens[end - 1].end()])
+        start = end
+    assert len(result) == parts
+    assert [word for part in result for word in part.split()] == script.split()
+    return result
+
+
+def ambient_effect_for_scene(scene_prompt: str) -> str:
+    """Select restrained sound effects appropriate to the scene."""
+    text = scene_prompt.lower()
+    if any(w in text for w in ("rain", "storm", "puddle", "petrichor")):
+        return "Soft rain patter and gentle wet footsteps, well below KURI's voice"
+    if any(w in text for w in ("space", "moon", "planet", "galaxy", "vacuum")):
+        return "One subtle cinematic transition whoosh only; no sound propagating through vacuum"
+    if any(w in text for w in ("ocean", "sea", "underwater", "river", "lake")):
+        return "Soft water movement and a few restrained bubble or splash sounds"
+    if any(w in text for w in ("laboratory", "science lab", "microscope", "experiment")):
+        return "One soft equipment click and understated laboratory room tone"
+    if any(w in text for w in ("forest", "tree", "jungle", "garden")):
+        return "Soft rustling leaves and faint distant birds"
+    if any(w in text for w in ("street", "city", "sidewalk", "crowd")):
+        return "Very soft city room tone and subtle footsteps; no intelligible background speech"
+    return "A soft clothing rustle or natural footsteps only when the action warrants it"
+
+
+def make_flow_prompt(visual: str, dialogue: str, camera: str, effects: str) -> str:
+    exact_line = json.dumps(dialogue, ensure_ascii=False)
+    return (
+        "GOOGLE FLOW VIDEO GENERATION — one approximately 8-second vertical 9:16 scene. "
+        "REFERENCE IMAGE: Upload the approved KURI image as the consistent character reference. "
+        "VISUAL STYLE: premium cinematic 3D CGI, expressive facial animation and realistic adult "
+        "Filipino character proportions. MAIN CHARACTER: " + KURI_REFERENCE +
+        " VISUAL ACTION AND SETTING (use this for scenery, not audio): " + visual +
+        " CAMERA MOVEMENT: " + camera +
+        " SPEAKER: KURI alone, visibly speaking with natural Filipino lip movements, "
+        "precise lip sync and believable expressions. "
+        "VOICE CONSISTENCY ACROSS ALL SEVEN CLIPS: " + VOICE_DIRECTION +
+        " EXACT TAGALOG DIALOGUE — speak the following words ONCE, in this order, "
+        "without paraphrasing or adding another line: " + exact_line + ". "
+        "AUDIO / SOUND EFFECTS: " + effects +
+        ". Keep all effects subtle underneath the spoken line, no music, "
+        "no second speaker and no generic announcer voice. "
+        "If the visual scene brief mentions silence, that applies only to the scenery: "
+        "KURI's specified spoken dialogue is required. "
+        "No on-screen captions, logos, watermarks, titles or visible text."
+    )
+
+
 def build_review_pack(content: dict, storyboard: dict, topic: str) -> dict:
     title = require_text(content, "title", 12)
     script = require_text(content, "script", 250)
@@ -105,6 +202,7 @@ def build_review_pack(content: dict, storyboard: dict, topic: str) -> dict:
     if not isinstance(items, list) or len(items) != 7:
         raise ValueError("Exactly seven storyboard scenes are required")
 
+    dialogue_lines = split_exact_narration(script, len(items))
     seen: set[str] = set()
     scenes = []
     for index, scene in enumerate(items, start=1):
@@ -127,20 +225,32 @@ def build_review_pack(content: dict, storyboard: dict, topic: str) -> dict:
             + " Scene: "
             + visual
         )
+        exact_dialogue = dialogue_lines[index - 1]
+        camera = CAMERA_MOVEMENTS[index - 1]
+        effects = ambient_effect_for_scene(visual)
+        spoken_words = len(exact_dialogue.split())
+        pace_warning = (
+            "Dialogue may be too long for an 8-second generated clip. "
+            "Shorten the master script and regenerate, or use longer clips / a separate voice track. "
+            "Do not omit words to force a fit."
+            if spoken_words > MAX_COMFORTABLE_WORDS_PER_SCENE else ""
+        )
         scenes.append(
             {
                 "number": index,
                 "title": scene_title,
-                "approximateSeconds": 8,
+                "approximateSeconds": SCENE_SECONDS,
                 "tagalogVoiceoverBeat": beat,
+                "exactTagalogDialogue": exact_dialogue,
+                "dialogueWordCount": spoken_words,
+                "cameraMovement": camera,
+                "soundEffects": effects,
+                "durationWarning": pace_warning,
                 "silentAnimationPrompt": prompt_head
                 + " No narration, dialogue, captions, or typography; output silent animation.",
-                "googleFlowCombinedPrompt": prompt_head
-                + " Sound: one continuous voiceover spoken in natural Tagalog by KURI. "
-                + VOICE_DIRECTION
-                + ' Spoken narration: "'
-                + beat.replace('"', "'")
-                + '". Avoid captions or on-screen text. Maintain consistent KURI identity.',
+                "googleFlowCombinedPrompt": make_flow_prompt(
+                    visual, exact_dialogue, camera, effects
+                ),
             }
         )
 
@@ -158,14 +268,18 @@ def build_review_pack(content: dict, storyboard: dict, topic: str) -> dict:
         "sourceNote": content.get("sourceNote", ""),
         "voiceDirection": VOICE_DIRECTION,
         "scenes": scenes,
+        "exactNarrationCoverage": True,
+        "mayExceedEightSecondClip": any(scene["durationWarning"] for scene in scenes),
         "videoGenerated": False,
         "elevenLabsAudioGenerated": False,
         "youtubeUploaded": False,
         "requiresFactCheckAndRightsReview": True,
         "note": (
-            "Scene voiceover beats summarize the full narration and are not guaranteed "
-            "word-aligned. A real KURI reference image, provider API and editor are still "
-            "required for reliable character consistency and final MP4."
+            "Exact spoken lines preserve every word in the full narration, in order. "
+            "The storyboards were generated independently: review scene alignment. "
+            "Eight-second timing and accurate Tagalog speech/lip sync are not guaranteed. "
+            "Upload the approved KURI reference image for every scene. "
+            "Google Flow scene generation remains manual; no video or MP4 is rendered here."
         ),
     }
 
@@ -181,7 +295,7 @@ def write_review_pack(pack: dict, directory: Path) -> None:
         "FULL TAGALOG NARRATION",
         pack["fullTagalogNarration"],
         "",
-        "ELEVENLABS VOICE DIRECTION",
+        "KURI VOICE DIRECTION (GOOGLE FLOW OR OPTIONAL ELEVENLABS)",
         pack["voiceDirection"],
         "",
     ]
@@ -189,7 +303,14 @@ def write_review_pack(pack: dict, directory: Path) -> None:
         lines.extend(
             [
                 f'SCENE {scene["number"]} — {scene["title"]}',
-                f'VOICEOVER BEAT: {scene["tagalogVoiceoverBeat"]}',
+                f'STORYBOARD BEAT (VISUAL REFERENCE ONLY): {scene["tagalogVoiceoverBeat"]}',
+                "",
+                "EXACT TAGALOG DIALOGUE (FROM THE FULL SCRIPT)",
+                scene["exactTagalogDialogue"],
+                "",
+                f'CAMERA: {scene["cameraMovement"]}',
+                f'SOUND EFFECTS: {scene["soundEffects"]}',
+                f'PACING: {scene["durationWarning"] or "Check the actual speech timing before exporting."}',
                 "",
                 "GOOGLE FLOW PROMPT (ANIMATION + VOICEOVER)",
                 scene["googleFlowCombinedPrompt"],
@@ -203,6 +324,25 @@ def write_review_pack(pack: dict, directory: Path) -> None:
     (directory / "kuri-flow-prompts.txt").write_text(
         "\n".join(lines) + "\n", encoding="utf-8"
     )
+    scene_dir = directory / "scenes"
+    scene_dir.mkdir(exist_ok=True)
+    for scene in pack["scenes"]:
+        per_scene = [
+            f'KURI SCENE {scene["number"]:02d} — {scene["title"]}',
+            "",
+            "EXACT SPOKEN TAGALOG DIALOGUE",
+            scene["exactTagalogDialogue"],
+            "",
+            "GOOGLE FLOW PROMPT — COPY THE FULL TEXT BELOW",
+            scene["googleFlowCombinedPrompt"],
+            "",
+            "PACING NOTE",
+            scene["durationWarning"] or "Verify speech timing and character consistency.",
+            "",
+        ]
+        (scene_dir / f'scene-{scene["number"]:02d}-google-flow.txt').write_text(
+            "\n".join(per_scene), encoding="utf-8"
+        )
 
 
 def main() -> int:

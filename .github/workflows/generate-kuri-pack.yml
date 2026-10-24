@@ -61,5 +61,6 @@ jobs:
           path: |
             output/kuri/kuri-review-pack.json
             output/kuri/kuri-flow-prompts.txt
+            output/kuri/scenes/*.txt
           if-no-files-found: error
           retention-days: 7
