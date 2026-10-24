@@ -95,6 +95,32 @@ class CloudPackTests(unittest.TestCase):
             self.assertEqual(text.count("GOOGLE FLOW PROMPT ("), 7)
             self.assertIn("FULL TAGALOG NARRATION", text)
 
+    def test_worker_request_has_explicit_user_agent(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self, *args, **kwargs):
+                return b'{"status":"ok"}'
+
+        with patch("scripts.kuri_cloud_pack.urlopen", return_value=FakeResponse()) as opened:
+            value = request_json(
+                "https://example.workers.dev", "/v1/generate", "fake-for-test-only",
+                {"topic":"A science topic","angle":""}
+            )
+            self.assertEqual("ok", value["status"])
+            sent_request = opened.call_args.args[0]
+            self.assertEqual(
+                "VideoFactory-GitHub-Actions/1.0",
+                sent_request.get_header("User-agent")
+            )
+            self.assertEqual(
+                "Bearer fake-for-test-only", sent_request.get_header("Authorization")
+            )
+
     def test_endpoint_allowlist_blocks_other_http_requests(self):
         with self.assertRaisesRegex(ValueError, "allowlisted"):
             request_json("https://example.workers.dev", "/health", "not-a-real-token", {})
