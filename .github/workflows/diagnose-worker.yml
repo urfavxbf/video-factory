@@ -49,3 +49,39 @@ jobs:
           except URLError:
               raise SystemExit("Worker health DNS/network connectivity failed.")
           PY
+
+
+      - name: Probe unauthorized POST for routing behavior (no API token)
+        shell: bash
+        env:
+          WORKER_API_URL: https://video-factory-content-kit.wordplays-transcribe.workers.dev/v1/generate
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError
+
+          body = json.dumps({"topic":"Sample science topic","angle":"","previousTitles":[]}).encode()
+          request = Request(os.environ["WORKER_API_URL"], data=body, method="POST", headers={
+              "Authorization": "Bearer diagnostic-invalid-token",
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+              "User-Agent": "VideoFactory-GitHub-Actions-Healthcheck/1.0",
+          })
+          try:
+              with urlopen(request, timeout=20) as response:
+                  print("Unexpected unauthorized POST response:", response.status)
+                  raise SystemExit(1)
+          except HTTPError as error:
+              print("Unauthenticated POST HTTP status:", error.code)
+              print("Content type:", error.headers.get("content-type", "unknown"))
+              print("Server:", error.headers.get("server", "unknown"))
+              body = error.read(4096).decode("utf-8", errors="replace").lower()
+              for marker in ("cloudflare access", "error 1020", "access denied",
+                             "error 1010", "captcha", "unauthorized"):
+                  if marker in body:
+                      print("Safe diagnostic marker:", marker)
+              if error.code != 401:
+                  raise SystemExit("Unauthenticated POST was blocked outside Worker auth.")
+          PY
